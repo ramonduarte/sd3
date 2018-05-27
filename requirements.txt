@@ -1,3 +1,4 @@
+astroid==1.6.4
 backcall==0.1.0
 bleach==2.1.3
 decorator==4.3.0
@@ -8,6 +9,7 @@ ipykernel==4.8.2
 ipython==6.4.0
 ipython-genutils==0.2.0
 ipywidgets==7.2.1
+isort==4.3.4
 jedi==0.12.0
 Jinja2==2.10
 jsonschema==2.6.0
@@ -15,7 +17,9 @@ jupyter==1.0.0
 jupyter-client==5.2.3
 jupyter-console==5.2.0
 jupyter-core==4.4.0
+lazy-object-proxy==1.3.1
 MarkupSafe==1.0
+mccabe==0.6.1
 mistune==0.8.3
 nbconvert==5.3.1
 nbformat==4.4.0
@@ -27,6 +31,7 @@ pickleshare==0.7.4
 prompt-toolkit==1.0.15
 ptyprocess==0.5.2
 Pygments==2.2.0
+pylint==1.9.1
 python-dateutil==2.7.3
 PyYAML==3.12
 pyzmq==17.0.0
@@ -41,3 +46,4 @@ traitlets==4.3.2
 wcwidth==0.1.7
 webencodings==0.5.1
 widgetsnbextension==3.2.1
+wrapt==1.10.11

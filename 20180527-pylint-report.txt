@@ -1,0 +1,46 @@
+************* Module sd3.event_generator
+W: 15, 0: TODO: write signal handler (RM 2018-05-27T17:58:50.746BRT) (fixme)
+W: 29, 0: TODO: write this function (RM 2018-05-27T17:59:08.589BRT) (fixme)
+W: 32, 0: TODO: write this docstring (RM 2018-05-27T17:59:17.044BRT) (fixme)
+C: 15, 0: Trailing whitespace (trailing-whitespace)
+C:  1, 0: Empty module docstring (empty-docstring)
+E:  8, 0: No name 'user_input_handler' in module 'main' (no-name-in-module)
+W: 14,19: Redefining name 'signal' from outer scope (line 6) (redefined-outer-name)
+C: 14, 0: Missing function docstring (missing-docstring)
+W: 14,19: Unused argument 'signal' (unused-argument)
+W: 14,27: Unused argument 'frame' (unused-argument)
+C: 18, 0: Empty class docstring (empty-docstring)
+R: 31, 4: Method could be a function (no-self-use)
+C: 34, 4: Missing method docstring (missing-docstring)
+C: 37, 4: Missing method docstring (missing-docstring)
+W: 38,12: Unused variable 'tick' (unused-variable)
+C: 43, 0: Missing function docstring (missing-docstring)
+C:  9, 0: standard import "from datetime import datetime" should be placed before "from main import user_input_handler" (wrong-import-order)
+C: 10, 0: standard import "from random import randint" should be placed before "from main import user_input_handler" (wrong-import-order)
+C: 11, 0: standard import "from time import sleep" should be placed before "from main import user_input_handler" (wrong-import-order)
+************* Module sd3.main
+C:  1, 0: Empty module docstring (empty-docstring)
+E:  6, 0: No name 'user_input_handler' in module 'manager' (no-name-in-module)
+E:  6, 0: No name 'NoNameYet' in module 'manager' (no-name-in-module)
+C: 11, 0: Missing function docstring (missing-docstring)
+W:  6, 0: Unused NoNameYet imported from manager (unused-import)
+C:  8, 0: standard import "import signal" should be placed before "from manager import user_input_handler, NoNameYet" (wrong-import-order)
+************* Module sd3.manager
+W: 27, 0: TODO: write this docstring (RM 2018-05-27T17:57:02.589BRT) (fixme)
+C:  1, 0: Empty module docstring (empty-docstring)
+C: 15, 0: Missing class docstring (missing-docstring)
+R: 26, 4: Method could be a function (no-self-use)
+W:  6, 0: Unused stdin imported from sys (unused-import)
+R:  1, 0: Similar lines in 2 files
+==sd3.event_generator:43
+==sd3.main:13
+    signal.signal(signal.SIGINT, signal_handler)
+    event_generator = EventGenerator(*user_input_handler())
+    event_generator.run()
+    print("End of the run")
+    return 0
+ (duplicate-code)
+
+------------------------------------------------------------------
+Your code has been rated at 2.32/10 (previous run: 2.32/10, +0.00)
+
