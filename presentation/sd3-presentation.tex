@@ -1,0 +1,78 @@
+\documentclass{beamer}
+
+    \title[Ordenacao Distribuida] % (optional, only for long titles)
+    {Ordenacao Distribuida de Eventos}
+    \subtitle{Algoritmo de Lamport e Totally Ordered Multicast}
+    \author[Melo] % (optional, for multiple authors)
+    {R. D.~Melo\inst{1}}
+    \institute[Universidade Federal do Rio de Janeiro (UFRJ)] % (optional)
+    {
+    \inst{1}%
+    Departamento de Engenharia de Computacao e Informacao\\
+    ECI/UFRJ
+    }
+    \date[2018] % (optional)
+    {COS470 Sistemas Distribuidos, 2018}
+    \subject{Computer Science}
+
+    \AtBeginSection[] {
+        \begin{frame}
+            \frametitle{Table of Contents}
+            \tableofcontents[currentsection]
+        \end{frame}
+    }
+
+    \begin{document}
+        \frame{\titlepage}
+        \begin{frame}
+            \frametitle{Sumario}
+            \tableofcontents[currentsection]
+            %Content goes here
+        \end{frame}
+        \begin{frame}
+            \frametitle{This is the second slide}
+            \framesubtitle{A bit more information about this}
+            %More content goes here
+        \end{frame}
+        % etc
+
+        \begin{frame}[allowframebreaks]
+            \frametitle<presentation>{Referencias Bibliograficas}
+            \begin{thebibliography}{10}
+
+                \beamertemplateonlinebibitems
+                \bibitem{Shin2014}
+                D.~Shin.
+                \newblock {\em Reliable Multicast Chat}.
+                \newblock University of California - Irvine.
+                \newblock https://github.com/daeyun/reliable-multicast-chat, 2014.
+
+                \beamertemplateonlinebibitems
+                \bibitem{Tyrväinen2016}
+                J.~Tyrväinen.
+                \newblock {\em Concurrent solution for lamport clocks}.
+                \newblock https://github.com/religiosa/lamportClocks, 2016.
+
+                \beamertemplateonlinebibitems
+                \bibitem{Wolff2014}
+                C.~Wolff.
+                \newblock Microsoft/NY.
+                \newblock {\em Distributed Systems}.
+                \newblock https://github.com/c-w/ug4\_DistributedSystems, 2014.
+
+                \beamertemplateonlinebibitems
+                \bibitem{Whittaker2015}
+                J.~Whittaker.
+                \newblock {\em An implementation of Lamport timestamps}.
+                \newblock https://github.com/mwhittaker/clocks, 2015.
+
+                \beamertemplateonlinebibitems
+                \bibitem{Kiehl2015}
+                C.~Kiehl.
+                \newblock Amazon/WA.
+                \newblock {\em Parallelism in one line}.
+                \newblock https://wiki.python.org/moin/TcpCommunication, 2012.
+
+            \end{thebibliography}
+          \end{frame}
+    \end{document}
