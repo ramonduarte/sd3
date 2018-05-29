@@ -12,7 +12,7 @@ def user_input_handler():
     return class_input
 
 
-class NoNameYet:
+class Sd3Instance:
     """ not sure yet of what this is supposed to be."""
     def __init__(self, *args):
         self.number_of_processes = int(args[0]) if args[0] else 1
