@@ -18,52 +18,61 @@ class Process(object):
     """
     Process that will coordenate threads.
     """
-    threads = []
-
-    def __init__(self, events_by_process=100, events_per_second=1):
+    def __init__(self, target_address, events_by_process=100,
+                 events_per_second=1):
         self.events_by_process = events_by_process
         self.events_per_second = events_per_second
         self.pid = os.getpid()
+        self.create_threads(target_address)
 
-    def create_threads(self) -> "Thread":
+    def create_threads(self, target_address):
         """ Set up threads for listening and sending messages. """
-        pass
+        self.listener_thread = ListenerThread(self)
+        self.emitter_thread = EmitterThread(self, **{"address": target_address})
 
     # TODO: lift socket creation to Process level (RM 2018-06-01 22:47:12)
-    def create_socket(self, process: Process) -> "socket":
+    def create_socket(self) -> "socket":
         """ Start socket for its threads to use. """
         pass
 
-    def __lt__(self, other: Process):
+    def __lt__(self, other: "Process"):
         return self.pid < other.pid
 
-    def __eq__(self, other: Process):
+    def __eq__(self, other: "Process"):
         return self.pid == other.pid
 
-    def __gt__(self, other: Process):
+    def __gt__(self, other: "Process"):
         return self.pid > other.pid
 
 
 class Thread(object):
-    def __init__(self, thread: dummy.Process, *args, **kwargs):
+    def __init__(self, process: Process, thread=dummy.Process,
+                                         *args, **kwargs):
         self.underlying = thread
+        self.process = process
+        self.address = kwargs.get("address", "")
+        self.port = int(kwargs.get("port", 8002))
         self.start_socket()
 
     def run(self, *args, **kwargs):
         """ Function permanently run by this thread. """
         raise NotImplementedError
 
-    def start_socket(self, address='', port=8002):
+    def start_socket(self):
         """ Set up connection through TCP/IP socket. """
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind(address, port)
+
+    # TODO: close connections in case of failure
+    # def shutdown(self, *args, **kwargs):
+    #     raise NotImplementedError
 
 
 class ListenerThread(Thread):
     """ Thread responsible for handling receiving messages. """
     # TODO: this method as an abstract function (RM 2018-05-30 13:58:16)
-    def __init__(self, parameter_list):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.socket.bind((self.address, self.port))
         self.socket.listen(10)
 
     def run(self, *args, **kwargs):
@@ -78,7 +87,9 @@ class ListenerThread(Thread):
                     target=self.listen,
                     args=(client_socket, ip, port)).start()
             except:
+                # FIXME: print() is bad practice (RM 2018-06-02 14:21:42)
                 print("Terrible error!")
+                # FIXME: avoid imports mid function (RM 2018-06-02 14:22:10)
                 import traceback
                 traceback.print_exc()
 
@@ -109,8 +120,8 @@ class ListenerThread(Thread):
         vysl = input_from_client.encode("utf8")  # encode the result string
         client_socket.sendall(vysl)  # send it to client
         client_socket.close()  # close connection
-        # FIXME: desconnection formatting
-        LOG.info("Connection %s:%d ended.", ip, port)
+        # FIXME: disconnection formatting
+        LOG.info("Connection %s:%s ended.", ip, port)
 
 
     # TODO: lift this method to abstract class Thread (RM 2018-05-30 14:21:35)
@@ -138,10 +149,9 @@ class ListenerThread(Thread):
 class EmitterThread(Thread):
     """ Thread responsible for sending messages. """
     # TODO:  this method as an abstract function (RM 2018-05-30 13:58:16)
-    def __init__(self, process: Process, *args, **kwargs):
-        super().__init__()
-        self.process = process
-        if kwargs and sorted(kwargs.keys()) == ['adj', 'adv', 'noun', 'verb']:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if sorted(kwargs.keys()) == ['adj', 'adv', 'noun', 'verb']:
             self.words = kwargs
         else:
             self.words = {
@@ -151,7 +161,6 @@ class EmitterThread(Thread):
                 "adv": ["yesterday", "downhill", "outside", "like a pig",
                         "like a boss"],
             }
-        self.socket.listen(10)
 
     def sentence(self):
         """ Generates readable text for events."""
@@ -166,14 +175,14 @@ class EmitterThread(Thread):
 
     def run(self):
         """ Loop through input parameters."""
-        self.socket.connect(("127.0.0.1", 8002))
         for tick in range(self.process.events_by_process):
+            self.socket.connect((self.address, self.port))
             self.socket.send(self.generate()) # must encode the string to bytes
             LOG.info(self.generate(**{"event": "event #{} '{}'".format(
                 tick+1, self.sentence()
             )}))
             sleep(1.0/self.process.events_per_second)
-        self.socket.close()
+            self.socket.close()
 
     def generate(self, *args, **kwargs):
         """ Generates a random UTF-8 encoded string. """
@@ -221,13 +230,13 @@ class LogicalClock(object):
         finally:
             self.lock.release()
 
-    def __gt__(self, other: LogicalClock):
+    def __gt__(self, other: "LogicalClock"):
         return self.get_value() > other.get_value()
 
-    def __eq__(self, other: LogicalClock):
+    def __eq__(self, other: "LogicalClock"):
         return self.get_value() == other.get_value()
 
-    def __lt__(self, other: LogicalClock):
+    def __lt__(self, other: "LogicalClock"):
         return self.get_value() < other.get_value()
 
 

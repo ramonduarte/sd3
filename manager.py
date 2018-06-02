@@ -19,8 +19,8 @@ def signal_handler(sig: signal.signal, frame) -> int:
     """ Handle extern signals in order to set up coordenation."""
     if sig == signal.SIGTERM:
         LOG.error("Terminated by user (likely by Ctrl+C).")
-        return 1
         sys.exit(0)
+        return 1
     elif sig == signal.SIGUSR1:  # halt
         LOG.warning("Suspended by user (SIGUSR1).")
         signal.pause()
