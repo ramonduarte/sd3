@@ -6,7 +6,7 @@ Ramon Melo (ramonduarte at poli.ufrj.br)
 import signal
 from manager import Sd3Instance
 import event_generator
-from helper import *
+from conf import *
 import logging
 
 logging.basicConfig(filename=os.path.join(LOG_DIR, "sd3.log"), level=logging.DEBUG)

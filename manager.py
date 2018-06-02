@@ -2,14 +2,35 @@
 """
 Manages local threads.
 """
+import logging
+import signal
+import sys
+from datetime import datetime
+from random import randint, choice
+from time import sleep
 
-from sys import argv
+log = logging.getLogger(__name__)
 
 
 def user_input_handler():
     """ Function to handle input from user and other threads."""
-    class_input = [line for line in argv[1:]]
+    class_input = [line for line in sys.argv[1:]]
     return class_input
+
+
+def signal_handler(sig: signal.signal, frame) -> int:
+    """ Handle extern signals in order to set up coordenation."""
+    if sig == signal.SIGTERM:
+        log.error("Terminated by user (likely by Ctrl+C).")
+        sys.exit(0)
+    elif sig == signal.SIGUSR1:  # halt
+        log.warning("Suspended by user (SIGUSR1).")
+        signal.pause()
+    elif sig == signal.SIGUSR2:  # continue
+        log.warning("Awaken by user (SIGUSR2).")
+        return 0
+    else:
+        return 1
 
 
 class Sd3Instance:
@@ -23,6 +44,3 @@ class Sd3Instance:
         return 'number_of_processes: {}\nevents_by_process: {}\nevents_per_second: {}'.format(
             self.number_of_processes, self.events_by_process, self.events_per_second
         )
-
-    def __doc__(self):
-        return  # TODO: write this docstring (RM 2018-05-27T17:57:02.589BRT)
