@@ -1,29 +1,37 @@
+"""
+Classes used for this assignment.
+"""
+
 import multiprocessing.dummy as dummy
 import logging
 import socket
 import sys
 from random import choice
 from datetime import datetime
-from conf import *
 from time import sleep
+from conf import *
 
 
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 class Process(object):
+    """
+    Process that will coordenate threads.
+    """
     threads = []
 
-    def __init__(self,
-    events_by_process=100, events_per_second=1, *args, **kwargs):
+    def __init__(self, events_by_process=100, events_per_second=1):
         self.events_by_process = events_by_process
         self.events_per_second = events_per_second
         self.pid = os.getpid()
 
     def create_threads(self) -> "Thread":
+        """ Set up threads for listening and sending messages. """
         pass
 
     # TODO: lift socket creation to Process level (RM 2018-06-01 22:47:12)
     def create_socket(self, process: Process) -> "socket":
+        """ Start socket for its threads to use. """
         pass
 
     def __lt__(self, other: Process):
@@ -52,8 +60,10 @@ class Thread(object):
 
 
 class ListenerThread(Thread):
+    """ Thread responsible for handling receiving messages. """
     # TODO: this method as an abstract function (RM 2018-05-30 13:58:16)
     def __init__(self, parameter_list):
+        super().__init__()
         self.socket.listen(10)
 
     def run(self, *args, **kwargs):
@@ -61,7 +71,7 @@ class ListenerThread(Thread):
             # accept connections from outside
             (client_socket, address) = self.socket.accept()
             ip, port = str(address[0]), str(address[1])
-            log.info("Accepting connection from {}:{}".format(ip, port))
+            LOG.info("Accepting connection from %s:%s", ip, port)
 
             try:
                 self.underlying(
@@ -71,50 +81,51 @@ class ListenerThread(Thread):
                 print("Terrible error!")
                 import traceback
                 traceback.print_exc()
-    
+
         self.socket.close()
 
     # # likely not needed (RM 2018-05-30 14:27:38)
     # def listen(self):
-    #     # the number means how long the response can be in bytes  
-    #     result_bytes = self.socket.recv(4096) 
+    #     # the number means how long the response can be in bytes
+    #     result_bytes = self.socket.recv(4096
     #     # the return will be in bytes, so decode
     #     result_string = result_bytes.decode("utf8")
 
 
     # likely not needed (RM 2018-05-30 14:27:38)
-    def listen(self, client_socket):
+    def listen(self, client_socket, ip='', port=8002):
+        """ Listen to socket until a message is received. """
         # the input is in bytes, so decode it
         input_from_client_bytes = client_socket.recv(MAX_BUFFER_SIZE)
         size = sys.getsizeof(input_from_client_bytes)
         if  size >= MAX_BUFFER_SIZE:
-            log.warn("The length of input is too long: {}".format(size))
+            LOG.warning("The length of input is too long: %d", size)
 
         # decode input and strip the end of line
         input_from_client = input_from_client_bytes.decode("utf8").rstrip()
 
-        log.info(input_from_client)
+        LOG.info(input_from_client)
 
         vysl = input_from_client.encode("utf8")  # encode the result string
         client_socket.sendall(vysl)  # send it to client
         client_socket.close()  # close connection
         # FIXME: desconnection formatting
-        log.info("Connection {}:{} ended.")
+        LOG.info("Connection %s:%d ended.", ip, port)
 
 
     # TODO: lift this method to abstract class Thread (RM 2018-05-30 14:21:35)
     # tbh this is no longer need (RM 2018-06-01 22:05:39)
-    def write_log(self, client_socket, ip='', port=8002):
+    def write_log(self, client_socket):
         # the input is in bytes, so decode it
         input_from_client_bytes = client_socket.recv(MAX_BUFFER_SIZE)
         size = sys.getsizeof(input_from_client_bytes)
         if  size >= MAX_BUFFER_SIZE:
-            log.error("The length of input is too long: {}.".format(size))
+            LOG.error("The length of input is too long: {}.".format(size))
 
         # decode input and strip the end of line
         input_from_client = input_from_client_bytes.decode("utf8").rstrip()
 
-        log.info(input_from_client)
+        LOG.info(input_from_client)
 
         # likely not needed (RM 2018-05-30 14:18:25)
         vysl = input_from_client.encode("utf8")  # encode the result string
@@ -125,8 +136,10 @@ class ListenerThread(Thread):
 
 
 class EmitterThread(Thread):
+    """ Thread responsible for sending messages. """
     # TODO:  this method as an abstract function (RM 2018-05-30 13:58:16)
     def __init__(self, process: Process, *args, **kwargs):
+        super().__init__()
         self.process = process
         if kwargs and sorted(kwargs.keys()) == ['adj', 'adv', 'noun', 'verb']:
             self.words = kwargs
@@ -136,11 +149,11 @@ class EmitterThread(Thread):
                 "noun": ["Anna", "Brandon", "Charles", "Diana", "Emma"],
                 "verb": ["went away", "were found", "were okay", "arrived", "slept"],
                 "adv": ["yesterday", "downhill", "outside", "like a pig",
-                "like a boss"],
+                        "like a boss"],
             }
         self.socket.listen(10)
 
-    def sentence(self, *args, **kwargs):
+    def sentence(self):
         """ Generates readable text for events."""
         return "{} {} and {} {} {} {}.".format(
             choice(self.words["adj"]).title(),
@@ -151,12 +164,12 @@ class EmitterThread(Thread):
             choice(self.words["adv"]),
         )
 
-    def run(self, *args, **kwargs):
+    def run(self):
         """ Loop through input parameters."""
         self.socket.connect(("127.0.0.1", 8002))
         for tick in range(self.process.events_by_process):
             self.socket.send(self.generate()) # must encode the string to bytes
-            log.info(self.generate(**{"event": "event #{} '{}'".format(
+            LOG.info(self.generate(**{"event": "event #{} '{}'".format(
                 tick+1, self.sentence()
             )}))
             sleep(1.0/self.process.events_per_second)
@@ -194,7 +207,7 @@ class LogicalClock(object):
         try:
             self.value += 1
         except Exception as e:
-            log.error(e)
+            LOG.error(e)
             raise e
         finally:
             self.lock.release()
@@ -203,7 +216,7 @@ class LogicalClock(object):
         try:
             return self.value
         except Exception as e:
-            log.error(e)
+            LOG.error(e)
             raise e
         finally:
             self.lock.release()

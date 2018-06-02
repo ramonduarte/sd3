@@ -4,18 +4,15 @@ COS470 - Assignment 3
 Ramon Melo (ramonduarte at poli.ufrj.br)
 """
 import signal
-from manager import Sd3Instance
-import event_generator
-from conf import *
 import logging
+from conf import *
 
 logging.basicConfig(filename=os.path.join(LOG_DIR, "sd3.log"), level=logging.DEBUG)
-log = logging.getLogger(__name__)
+LOG = logging.getLogger(__name__)
 
 
 def main():
     """ Centralizing all computations on a single function."""
-    event_generator.main()
     return 0
 
 
