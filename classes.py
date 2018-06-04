@@ -6,6 +6,7 @@ import multiprocessing.dummy as dummy
 import logging
 import socket
 import sys
+import traceback
 from random import choice
 from datetime import datetime
 from time import sleep
@@ -28,7 +29,8 @@ class Process(object):
     def create_threads(self, target_address):
         """ Set up threads for listening and sending messages. """
         self.listener_thread = ListenerThread(self)
-        self.emitter_thread = EmitterThread(self, **{"address": target_address})
+        self.emitter_thread = EmitterThread(self, **{"address":
+                                                     target_address})
 
     # TODO: lift socket creation to Process level (RM 2018-06-01 22:47:12)
     def create_socket(self) -> "socket":
@@ -46,8 +48,9 @@ class Process(object):
 
 
 class Thread(object):
+    """ Abstract class to encapsulate threading functionality. """
     def __init__(self, process: Process, thread=dummy.Process,
-                                         *args, **kwargs):
+                 *args, **kwargs):
         self.underlying = thread
         self.process = process
         self.address = kwargs.get("address", "")
@@ -62,93 +65,64 @@ class Thread(object):
         """ Set up connection through TCP/IP socket. """
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    # TODO: close connections in case of failure
-    # def shutdown(self, *args, **kwargs):
-    #     raise NotImplementedError
-
 
 class ListenerThread(Thread):
     """ Thread responsible for handling receiving messages. """
-    # TODO: this method as an abstract function (RM 2018-05-30 13:58:16)
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.socket.bind((self.address, self.port))
         self.socket.listen(10)
 
     def run(self, *args, **kwargs):
-        while True:
-            # accept connections from outside
-            (client_socket, address) = self.socket.accept()
-            ip, port = str(address[0]), str(address[1])
-            LOG.info("Accepting connection from %s:%s", ip, port)
+        # accept connections from outside
+        (client_socket, address) = self.socket.accept()
+        self.client_ip_addr = str(address[0])
+        self.client_port = str(address[1])
+        LOG.info("Accepting connection from %s:%s", self.client_ip_addr,
+                 self.client_port)
 
-            try:
-                self.underlying(
-                    target=self.listen,
-                    args=(client_socket, ip, port)).start()
-            except:
-                # FIXME: print() is bad practice (RM 2018-06-02 14:21:42)
-                print("Terrible error!")
-                # FIXME: avoid imports mid function (RM 2018-06-02 14:22:10)
-                import traceback
-                traceback.print_exc()
+        try:
+            self.underlying(
+                target=self.listen,
+                args=(client_socket)).start()
+        except Exception as e:
+            LOG.fatal(e)
+            traceback.print_exc()
 
         self.socket.close()
 
-    # # likely not needed (RM 2018-05-30 14:27:38)
-    # def listen(self):
-    #     # the number means how long the response can be in bytes
-    #     result_bytes = self.socket.recv(4096
-    #     # the return will be in bytes, so decode
-    #     result_string = result_bytes.decode("utf8")
 
-
-    # likely not needed (RM 2018-05-30 14:27:38)
-    def listen(self, client_socket, ip='', port=8002):
+    # needs to be a function to keep thread semantics (RM 2018-06-03 22:32:44)
+    def listen(self, client_socket):
         """ Listen to socket until a message is received. """
-        # the input is in bytes, so decode it
-        input_from_client_bytes = client_socket.recv(MAX_BUFFER_SIZE)
-        size = sys.getsizeof(input_from_client_bytes)
-        if  size >= MAX_BUFFER_SIZE:
-            LOG.warning("The length of input is too long: %d", size)
+        while True:
+            input_from_client_bytes = client_socket.recv(MAX_BUFFER_SIZE)
+            size = sys.getsizeof(input_from_client_bytes)
 
-        # decode input and strip the end of line
-        input_from_client = input_from_client_bytes.decode("utf8").rstrip()
+            if  size >= MAX_BUFFER_SIZE:
+                LOG.error("The length of input is too long: %d", size)
+                return 1
+            if size == 33:  # empty message, remote thread failed
+                LOG.info("Connection %s:%s ended.", self.client_ip_addr,
+                         self.client_port)
+                return 0
 
-        LOG.info(input_from_client)
+            # decode input and strip the end of line
+            input_from_client = input_from_client_bytes.decode("utf8").rstrip()
 
-        vysl = input_from_client.encode("utf8")  # encode the result string
-        client_socket.sendall(vysl)  # send it to client
-        client_socket.close()  # close connection
-        # FIXME: disconnection formatting
-        LOG.info("Connection %s:%s ended.", ip, port)
+            if input_from_client == "CLOSE":
+                client_socket.close()
+                LOG.info("Connection %s:%s ended.", self.client_ip_addr,
+                         self.client_port)
+                return 0
 
-
-    # TODO: lift this method to abstract class Thread (RM 2018-05-30 14:21:35)
-    # tbh this is no longer need (RM 2018-06-01 22:05:39)
-    def write_log(self, client_socket):
-        # the input is in bytes, so decode it
-        input_from_client_bytes = client_socket.recv(MAX_BUFFER_SIZE)
-        size = sys.getsizeof(input_from_client_bytes)
-        if  size >= MAX_BUFFER_SIZE:
-            LOG.error("The length of input is too long: {}.".format(size))
-
-        # decode input and strip the end of line
-        input_from_client = input_from_client_bytes.decode("utf8").rstrip()
-
-        LOG.info(input_from_client)
-
-        # likely not needed (RM 2018-05-30 14:18:25)
-        vysl = input_from_client.encode("utf8")  # encode the result string
-        client_socket.sendall(vysl)  # send it to client
-
-        # close connection
-        client_socket.close()
+            LOG.info(input_from_client)
+            # TODO: end this function asynchronously (RM 2018-06-03 22:34:13)
+            sleep(1)
 
 
 class EmitterThread(Thread):
     """ Thread responsible for sending messages. """
-    # TODO:  this method as an abstract function (RM 2018-05-30 13:58:16)
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if sorted(kwargs.keys()) == ['adj', 'adv', 'noun', 'verb']:
@@ -157,7 +131,8 @@ class EmitterThread(Thread):
             self.words = {
                 "adj": ["fancy", "dirty", "wise", "stupid", "funny"],
                 "noun": ["Anna", "Brandon", "Charles", "Diana", "Emma"],
-                "verb": ["went away", "were found", "were okay", "arrived", "slept"],
+                "verb": ["went away", "were found", "were okay", "arrived",
+                         "slept"],
                 "adv": ["yesterday", "downhill", "outside", "like a pig",
                         "like a boss"],
             }
@@ -173,39 +148,53 @@ class EmitterThread(Thread):
             choice(self.words["adv"]),
         )
 
-    def run(self):
+    def run(self, *args, **kwargs):
         """ Loop through input parameters."""
+        self.socket.connect((self.address, self.port))
+
         for tick in range(self.process.events_by_process):
-            self.socket.connect((self.address, self.port))
-            self.socket.send(self.generate()) # must encode the string to bytes
-            LOG.info(self.generate(**{"event": "event #{} '{}'".format(
+            # self.socket.connect((self.address, self.port))
+
+            message = self.generate(**{"event": "event #{} '{}'".format(
                 tick+1, self.sentence()
-            )}))
+            )})
+            try:
+                self.socket.send(message) # must encode the string to bytes
+            except BrokenPipeError:
+                traceback.print_exc()
+                sleep(10)
+
+            LOG.info(message)
             sleep(1.0/self.process.events_per_second)
-            self.socket.close()
+
+        # FIXME: define protocol to end connection
+        self.socket.send("CLOSE".encode("utf8"))
+
+        self.socket.close()
 
     def generate(self, *args, **kwargs):
         """ Generates a random UTF-8 encoded string. """
-        event = self.sentence()
+        event = kwargs.get("event", self.sentence())
         return "from pid {}: {} @ {}".format(
-            self.process.pid, event, datetime.now()).encode("utf")
+            self.process.pid, event, datetime.now()).encode("utf8")
 
 
 class Channel(object):
+    """ Communication between remote processes. """
     def __init__(self, sender: Process, receiver: Process, *args, **kwargs):
         self.processes = [sender, receiver]
 
     @property
     def sender(self):
         return min(self.processes)
-    
+
     @property
     def receiver(self):
         return max(self.processes)
-    
+
 
 class LogicalClock(object):
-    
+    """ Implementation of local Lamport clock. """
     def __init__(self, process: Process, *args, **kwargs):
         self.value = 0
         self.process = process

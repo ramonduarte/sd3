@@ -18,9 +18,15 @@ def user_input_handler():
 def signal_handler(sig: signal.signal, frame) -> int:
     """ Handle extern signals in order to set up coordenation."""
     if sig == signal.SIGTERM:
-        LOG.error("Terminated by user (likely by Ctrl+C).")
-        sys.exit(0)
-        return 1
+        LOG.fatal("Terminated by user (likely by Ctrl+C).")
+        try:
+            process.emitter_thread.socket.close()
+            process.listener_thread.socket.close()
+        except:
+            pass
+        finally:
+            sys.exit(0)
+            return 1
     elif sig == signal.SIGUSR1:  # halt
         LOG.warning("Suspended by user (SIGUSR1).")
         signal.pause()
