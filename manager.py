@@ -2,27 +2,37 @@
 """
 Manages local threads.
 """
+import logging
+import signal
+import sys
 
-from sys import argv
+LOG = logging.getLogger(__name__)
 
 
 def user_input_handler():
     """ Function to handle input from user and other threads."""
-    class_input = [line for line in argv[1:]]
+    class_input = [line for line in sys.argv[1:]]
     return class_input
 
 
-class Sd3Instance:
-    """ not sure yet of what this is supposed to be."""
-    def __init__(self, *args):
-        self.number_of_processes = int(args[0]) if args[0] else 1
-        self.events_by_process = int(args[1]) if args[1] else 100
-        self.events_per_second = int(args[2]) if args[2] else 1
-
-    def __str__(self):
-        return 'number_of_processes: {}\nevents_by_process: {}\nevents_per_second: {}'.format(
-            self.number_of_processes, self.events_by_process, self.events_per_second
-        )
-
-    def __doc__(self):
-        return  # TODO: write this docstring (RM 2018-05-27T17:57:02.589BRT)
+def signal_handler(sig: signal.signal, frame) -> int:
+    """ Handle extern signals in order to set up coordenation."""
+    if sig == signal.SIGTERM:
+        LOG.fatal("Terminated by user (likely by Ctrl+C).")
+        try:
+            process.emitter_thread.socket.close()
+            process.listener_thread.socket.close()
+        except:
+            pass
+        finally:
+            sys.exit(0)
+            return 1
+    elif sig == signal.SIGUSR1:  # halt
+        LOG.warning("Suspended by user (SIGUSR1).")
+        signal.pause()
+        return 0
+    elif sig == signal.SIGUSR2:  # continue
+        LOG.warning("Awaken by user (SIGUSR2).")
+        return 0
+    else:
+        return 1
