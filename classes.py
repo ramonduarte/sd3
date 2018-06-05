@@ -7,10 +7,12 @@ import logging
 import socket
 import sys
 import traceback
+import uuid
+import os
 from random import choice
 from datetime import datetime
 from time import sleep
-from conf import *
+from conf import MAX_BUFFER_SIZE
 
 
 LOG = logging.getLogger(__name__)
@@ -25,6 +27,7 @@ class Process(object):
         self.events_per_second = events_per_second
         self.pid = os.getpid()
         self.create_threads(target_address)
+        self.clock = LogicalClock(self)
 
     def create_threads(self, target_address):
         """ Set up threads for listening and sending messages. """
@@ -81,13 +84,18 @@ class ListenerThread(Thread):
         LOG.info("Accepting connection from %s:%s", self.client_ip_addr,
                  self.client_port)
 
+        # LOG.info("client socket: %s", client_socket)
+
         try:
-            self.underlying(
-                target=self.listen,
-                args=(client_socket)).start()
+            self.listen(client_socket)
+            # res = self.listen(client_socket)
+            # self.underlying(
+            #     target=self.listen,
+            #     args=(client_socket)).start()
         except Exception as e:
             LOG.fatal(e)
             traceback.print_exc()
+            print(client_socket)
 
         self.socket.close()
 
@@ -97,6 +105,7 @@ class ListenerThread(Thread):
         """ Listen to socket until a message is received. """
         while True:
             input_from_client_bytes = client_socket.recv(MAX_BUFFER_SIZE)
+            self.process.clock.increment()
             size = sys.getsizeof(input_from_client_bytes)
 
             if  size >= MAX_BUFFER_SIZE:
@@ -116,7 +125,20 @@ class ListenerThread(Thread):
                          self.client_port)
                 return 0
 
-            LOG.info(input_from_client)
+            LOG.info("RECEIVED %s", input_from_client)
+
+            # returning ACK message (RM 2018-06-04 20:52:41)
+            self.process.clock.increment()
+            ack = AckMessage(
+                self.process.clock.get_value(),
+                datetime.today(),
+                self.address,
+                self.client_ip_addr,
+                "placeholder_uuid" #FIXME(RM 2018-06-04 20:58:01)
+            )
+            LOG.info(ack.content)
+            client_socket.send(ack.content.encode("utf8"))
+
             # TODO: end this function asynchronously (RM 2018-06-03 22:34:13)
             sleep(1)
 
@@ -125,58 +147,32 @@ class EmitterThread(Thread):
     """ Thread responsible for sending messages. """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if sorted(kwargs.keys()) == ['adj', 'adv', 'noun', 'verb']:
-            self.words = kwargs
-        else:
-            self.words = {
-                "adj": ["fancy", "dirty", "wise", "stupid", "funny"],
-                "noun": ["Anna", "Brandon", "Charles", "Diana", "Emma"],
-                "verb": ["went away", "were found", "were okay", "arrived",
-                         "slept"],
-                "adv": ["yesterday", "downhill", "outside", "like a pig",
-                        "like a boss"],
-            }
-
-    def sentence(self):
-        """ Generates readable text for events."""
-        return "{} {} and {} {} {} {}.".format(
-            choice(self.words["adj"]).title(),
-            choice(self.words["noun"]),
-            choice(self.words["adj"]),
-            choice(self.words["noun"]),
-            choice(self.words["verb"]),
-            choice(self.words["adv"]),
-        )
 
     def run(self, *args, **kwargs):
         """ Loop through input parameters."""
         self.socket.connect((self.address, self.port))
 
         for tick in range(self.process.events_by_process):
-            # self.socket.connect((self.address, self.port))
-
-            message = self.generate(**{"event": "event #{} '{}'".format(
-                tick+1, self.sentence()
-            )})
             try:
-                self.socket.send(message) # must encode the string to bytes
+                self.process.clock.increment()
+                message = SentMessage(
+                    self.process.clock.get_value(),
+                    datetime.now(),
+                    '127.0.0.1',  # FIXME: (RM 2018-06-04 19:35:10)
+                    self.address,
+                    )
+                self.socket.send(message.content.encode("utf8"))
             except BrokenPipeError:
                 traceback.print_exc()
                 sleep(10)
 
-            LOG.info(message)
+            LOG.info("SENT %s", message.content)
             sleep(1.0/self.process.events_per_second)
 
         # FIXME: define protocol to end connection
         self.socket.send("CLOSE".encode("utf8"))
 
         self.socket.close()
-
-    def generate(self, *args, **kwargs):
-        """ Generates a random UTF-8 encoded string. """
-        event = kwargs.get("event", self.sentence())
-        return "from pid {}: {} @ {}".format(
-            self.process.pid, event, datetime.now()).encode("utf8")
 
 
 class Channel(object):
@@ -186,21 +182,24 @@ class Channel(object):
 
     @property
     def sender(self):
+        """ Process that should initiate a connection. """
         return min(self.processes)
 
     @property
     def receiver(self):
+        """ Process that should receive a connection. """
         return max(self.processes)
 
 
 class LogicalClock(object):
     """ Implementation of local Lamport clock. """
     def __init__(self, process: Process, *args, **kwargs):
-        self.value = 0
+        self.value = 1
         self.process = process
         self.lock = dummy.Lock()
 
     def increment(self):
+        """ Increment logical clock counter. """
         self.lock.acquire()
         try:
             self.value += 1
@@ -211,8 +210,21 @@ class LogicalClock(object):
             self.lock.release()
 
     def get_value(self):
+        """ Access value stored in the logical clock counter. """
+        self.lock.acquire()
         try:
             return self.value
+        except Exception as e:
+            LOG.error(e)
+            raise e
+        finally:
+            self.lock.release()
+
+    def update(self, other: int):
+        """ Update logical clock counter. """
+        self.lock.acquire()
+        try:
+            self.value = max(self.value, other) + 1
         except Exception as e:
             LOG.error(e)
             raise e
@@ -230,11 +242,79 @@ class LogicalClock(object):
 
 
 class Event(object):
-    pass
+    """ Ocurrence that prompts update of Lamport clock. """
+    def __init__(self, clock: int, timestamp: datetime, source: int):
+        self.clock = clock
+        self.timestamp = timestamp
+        self.source = source
+        self.id = uuid.uuid1()
 
 
 class Message(Event):
-    pass
+    """ Message sent or received through a TCP socket. """
+    def __init__(self, clock: int, timestamp: datetime, source: int, target: str):
+        super().__init__(clock, timestamp, source)
+        self.content = ""
+        self.target = target
+
+    def __str__(self):
+        return "Message {}: '{}'".format(
+            self.id,
+            self.content[:50] + (self.content[50:] and '...')
+            )
+
+
+class SentMessage(Message):
+    """ Message sent through a TCP socket. """
+    def __init__(self, clock: int, timestamp: datetime, source: int, target: str):
+        super().__init__(clock, timestamp, source, target)
+        self.content = self.generate()
+
+    def sentence(self):
+        """ Generates readable text for events."""
+        return choice(open("sentences.txt").readlines())
+
+    def generate(self):
+        """ Generates an UTF-8 encoded string. """
+        return "<{}> from process {} to {}: {} ({})".format(
+            self.clock,
+            self.source,
+            self.target,
+            self.sentence(),
+            datetime.now()
+            )
+
+
+class ReceivedMessage(Message):
+    """ Message received through a TCP socket. """
+    def __init__(self,
+                 clock: int,
+                 timestamp: datetime,
+                 source: int,
+                 target: str):
+        super().__init__(clock, timestamp, source, target)
+        self.content = ""
+
+
+class AckMessage(Message):
+    """ Acknowledgement of a message received through a TCP socket. """
+    def __init__(self,
+                 clock: int,
+                 timestamp: datetime,
+                 source: int,
+                 target: str,
+                 receipt_of: uuid.UUID):
+        super().__init__(clock, timestamp, source, target)
+        self.receipt_of = receipt_of
+        self.content = "<{}> ACK {} in confirmation of message {}" \
+                        " from {} to {} ({}).".format(
+                            self.clock,
+                            self.id,
+                            self.receipt_of,
+                            self.target,
+                            self.source,
+                            self.timestamp
+                        )
 
 
 # TODO: find an appropriate inheritance (RM 2018-05-28T21:00:09.381BRT)
