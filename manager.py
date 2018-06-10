@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Manages local threads.
+Helpful code wrapped up in functions for clarity.
 """
 import logging
 import signal
 import sys
+import os
+from conf import LOG_DIR
 
-LOG = logging.getLogger(__name__)
 
-
-def user_input_handler():
+def user_input_handler() -> list:
     """ Function to handle input from user and other threads."""
-    class_input = [line for line in sys.argv[1:]]
-    return class_input
+    input_list = [line for line in sys.argv[1:]]
+    return input_list
 
 
 def signal_handler(sig: signal.signal, frame) -> int:
@@ -36,3 +36,28 @@ def signal_handler(sig: signal.signal, frame) -> int:
         return 0
     else:
         return 1
+
+def ger_or_default(obj: object, index: int, default=0):
+    """ Similar to dict.get() but for iterables. """
+    try:
+        iter(obj)
+        return obj[index] if -len(obj) <= index < len(obj) else default
+    except TypeError:
+        return default
+
+def log_setup() -> logging.Logger:
+    """ Creates log directory if not available. """
+    try:
+        os.mkdir(LOG_DIR)
+    except OSError:
+        pass
+
+    # prepping log
+    logging.basicConfig(
+        filename=os.path.join(
+            LOG_DIR,
+            ger_or_default(user_input_handler(), 0, __name__)
+        ),
+        level=logging.DEBUG
+    )
+    return logging.getLogger(__name__)
