@@ -264,6 +264,17 @@ class LogicalClock(object):
         finally:
             self.lock.release()
 
+    def update(self, other: int):
+        """ Update logical clock counter. """
+        self.lock.acquire()
+        try:
+            self.value = max(self.value, other) + 1
+        except Exception as e:
+            LOG.error(e)
+            raise e
+        finally:
+            self.lock.release()
+
     def __gt__(self, other: "LogicalClock"):
         return self.get_value() > other.get_value()
 

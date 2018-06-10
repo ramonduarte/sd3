@@ -7,6 +7,8 @@ import signal
 from multiprocessing.dummy import Pool
 from manager import user_input_handler, signal_handler, ger_or_default, log_setup
 from classes import Process
+from multiprocessing.dummy import Pool
+from conf import LOG_DIR
 
 
 def main():
