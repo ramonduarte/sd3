@@ -8,6 +8,8 @@ import sys
 import traceback
 import uuid
 import os
+import re
+import select
 from random import choice
 from datetime import datetime
 from time import sleep
@@ -19,7 +21,7 @@ class Process(object):
     Process that will coordenate threads.
     """
     def __init__(self, LOG, target_address="", target_port=8002, address="",
-                 port=8002, events_by_process=100, events_per_second=1):
+                 port=8002, events_by_process=100, events_per_second=.1):
         self.events_by_process = events_by_process
         self.events_per_second = events_per_second
         self.pid = os.getpid()
@@ -62,7 +64,7 @@ class Thread(object):
                  port=8002):
         self.underlying = thread
         self.process = process
-        self.address = address
+        self.address = address if address else "0.0.0.0"
         self.port = int(port)
         self.start_socket()
 
@@ -73,6 +75,7 @@ class Thread(object):
     def start_socket(self):
         """ Set up connection through TCP/IP socket. """
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setblocking(0)
 
     @property
     def hostname(self):
@@ -88,6 +91,7 @@ class ListenerThread(Thread):
 
     def run(self, *args, **kwargs):
         # accept connections from outside
+        # (client_socket, address) = self.socket.accept()
         (client_socket, address) = self.socket.accept()
         self.client_ip_addr = str(address[0])
         self.client_port = str(address[1])
@@ -96,17 +100,21 @@ class ListenerThread(Thread):
                  self.client_port)
 
         # self.process.LOG.info("client socket: %s", client_socket)
+        while True:
+            try:
+                self.listen(client_socket)
+                # res = self.listen(client_socket)
+                # self.underlying(
+                #     target=self.listen,
+                #     args=(client_socket)).start()
+                break
+            except Exception as e:
+                self.process.LOG.fatal(e)
+                traceback.print_exc()
+                print(client_socket)
+                sleep(1)
 
-        try:
-            self.listen(client_socket)
-            # res = self.listen(client_socket)
-            # self.underlying(
-            #     target=self.listen,
-            #     args=(client_socket)).start()
-        except Exception as e:
-            self.process.LOG.fatal(e)
-            traceback.print_exc()
-            print(client_socket)
+                self.listen(self.socket)
 
         # self.socket.close()
 
@@ -114,11 +122,11 @@ class ListenerThread(Thread):
     # needs to be a function to keep thread semantics (RM 2018-06-03 22:32:44)
     def listen(self, client_socket):
         """ Listen to socket until a message is received. """
+
         while True:
             input_from_client_bytes = client_socket.recv(MAX_BUFFER_SIZE)
             self.process.clock.increment()
             size = sys.getsizeof(input_from_client_bytes)
-            
 
             if  size >= MAX_BUFFER_SIZE:
                 # TODO: ReceivedMessage() (RM 2018-06-06 13:01:13)
@@ -133,21 +141,30 @@ class ListenerThread(Thread):
 
             # decode input and strip the end of line
             input_from_client = input_from_client_bytes.decode("utf8").rstrip()
+            print(input_from_client)
 
             if input_from_client == "CLOSE":
                 # TODO: ReceivedMessage() (RM 2018-06-06 13:01:13)
-                client_socket.close()
+                # client_socket.close()
                 self.process.LOG.info("Connection %s:%s ended.", self.client_ip_addr,
                          self.client_port)
-                return 0
+                # return 0
+                continue
             
             # TODO: fix better approach to ack checks (RM 2018-06-10 13:35:33)
             if "ACK" in input_from_client:
                 # TODO: fetch sent message and log it (RM 2018-06-10 13:38:03)
+                message = ReceivedMessage(
+                    self.process,
+                    datetime.today(),
+                    self.client_ip_addr,
+                    self.address,
+                    input_from_client
+                )
                 continue
 
             message = ReceivedMessage(
-                self.process.clock.get_value(),
+                self.process,
                 datetime.today(),
                 self.client_ip_addr,
                 self.address,
@@ -159,17 +176,34 @@ class ListenerThread(Thread):
 
             # returning ACK message (RM 2018-06-04 20:52:41)
             self.process.clock.increment()
-            ack = AckMessage(
-                clock=self.process.clock.get_value(),
-                timestamp=datetime.today(),
-                source=self.address,
-                target=self.client_ip_addr,
-                receipt_of=message.emitter_id
-            )
-            # FIXME: self.process.LOG.info(ack.content)
-            client_socket.send(ack.content.encode("utf8"))
-            message.mark_as_done()
 
+            while True:
+                try:
+                    ack = AckMessage(
+                        process=self.process,
+                        timestamp=datetime.today(),
+                        source=self.address,
+                        target=self.client_ip_addr,
+                        receipt_of=message.emitter_id,
+                        original_clock=message.emitter_clock
+                    )
+                    # FIXME: self.process.LOG.info(ack.content)
+                    # can_read, can_write, under_exception = select.select(
+                    #     [client_socket],
+                    #     [self.process.emitter_thread.socket],
+                    #     [self.process.emitter_thread.socket]
+                    # )
+                    self.process.emitter_thread.socket.send(ack.content.encode("utf8"))
+                    message.mark_as_done()
+                    print("ACK sent")
+                    print(ack.content)
+                    break
+                except AttributeError:
+                    print("=>", message.content)
+
+                    sleep(1)
+
+            print("listening")
             # TODO: end this function asynchronously (RM 2018-06-03 22:34:13)
             sleep(1)
 
@@ -178,27 +212,53 @@ class EmitterThread(Thread):
     """ Thread responsible for sending messages. """
     def __init__(self, target_address="", target_port=8002, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.target_address = target_address
+        self.target_port = int(target_port)
 
     def run(self, *args, **kwargs):
         """ Loop through input parameters."""
-        self.socket.connect((self.address, self.port))
-        
+        able_to_read, able_to_write, under_exception = select.select(
+                [self.socket],
+                [self.socket],
+                [self.socket]
+            )
+        if self.socket in able_to_write:
+            try:
+                self.socket.connect((self.target_address, self.target_port))
+            except (ConnectionRefusedError, BlockingIOError):
+                if __debug__:
+                    print(self.address, self.port)
+                    print(self.target_address, self.target_port)
+                    print(able_to_write)
+                # self.socket.close()
+                sleep(2)
+        # while True:
+            
 
         for tick in range(self.process.events_by_process):
+            self.process.clock.increment()
+            message = SentMessage(
+                self.process,
+                datetime.now(),
+                self.address,
+                self.target_address,
+            )
             try:
-                self.process.clock.increment()
-                message = SentMessage(
-                    self.process.clock.get_value(),
-                    datetime.now(),
-                    self.hostname,
-                    self.address,
-                    )
+                can_read, can_write, under_exception = select.select(
+                    [],
+                    [self.socket],
+                    [self.socket]
+                )
+                while self.socket not in can_write:
+                    sleep(1)
                 self.socket.send(message.content.encode("utf8"))
             except BrokenPipeError:
+                if __debug__:
+                    print(self.target_port, self.target_address)
                 traceback.print_exc()
                 sleep(10)
 
-            # FIXME: self.process.LOG.info("SENT %s", message.content)
+            # FIXME: self.process.LOG.info(message.content)
             self.process.queue.put(message)
             sleep(1.0/self.process.events_per_second)
 
@@ -264,17 +324,6 @@ class LogicalClock(object):
         finally:
             self.lock.release()
 
-    def update(self, other: int):
-        """ Update logical clock counter. """
-        self.lock.acquire()
-        try:
-            self.value = max(self.value, other) + 1
-        except Exception as e:
-            LOG.error(e)
-            raise e
-        finally:
-            self.lock.release()
-
     def __gt__(self, other: "LogicalClock"):
         return self.get_value() > other.get_value()
 
@@ -285,10 +334,9 @@ class LogicalClock(object):
         return self.get_value() < other.get_value()
 
 
-# TODO: replace clock with self.process.clock (RM 2018-06-10 11:56:31)
 class Event(object):
     """ Ocurrence that prompts update of Lamport clock. """
-    def __init__(self, process: Process, timestamp: datetime, source: int):
+    def __init__(self, process: Process, timestamp: datetime, source: str):
         self.process = process
         self._clockstamp = self.process.clock.get_value()
         self.timestamp = timestamp
@@ -304,12 +352,11 @@ class Event(object):
         raise TypeError("event cannot have its clock value changed.")
 
 
-# TODO: replace clock with self.process.clock (RM 2018-06-10 11:56:31)
 class Message(Event):
     """ Message sent or received through a TCP socket. """
-    def __init__(self, clock: int, timestamp: datetime, source: int,
+    def __init__(self, process: Process, timestamp: datetime, source: str,
                  target: str):
-        super().__init__(clock, timestamp, source)
+        super().__init__(process, timestamp, source)
         self.content = ""
         self.target = target
         self.status = False
@@ -324,90 +371,178 @@ class Message(Event):
         """ Change Message status. """
         self.status = True
 
-    def log(self, parameter_list):
+    def log(self):
+        """ Write message to log. """
+        raise NotImplementedError
+
+    def parse_content(self):
+        """ Generate structure from message content. """
         raise NotImplementedError
 
 
 # TODO: replace clock with self.process.clock (RM 2018-06-10 11:56:31)
 class SentMessage(Message):
     """ Message sent through a TCP socket. """
-    def __init__(self, clock: int, timestamp: datetime, source: int,
+    def __init__(self, process: Process, timestamp: datetime, source: str,
                  target: str):
-        super().__init__(clock, timestamp, source, target)
+        super().__init__(process, timestamp, source, target)
         self.content = self.generate()
 
     def sentence(self):
         """ Generates readable text for events."""
-        return choice(open("sentences.txt").readlines())
+        return choice(open("sentences.txt").readlines()).rstrip()
 
     def generate(self):
         """ Generates an UTF-8 encoded string. """
-        return "<{}> from process {} to {}: {} ({})".format(
+        return "<{}> SENT message {} from {} to {}: {} ({})".format(
             self.clock,
+            self.id,
             self.source,
             self.target,
             self.sentence(),
             datetime.now()
             )
 
-    def log(self, parameter_list):
-        raise NotImplementedError
+    def log(self):
+        self.process.LOG.info(self.content)
 
 
 # TODO: replace clock with self.process.clock (RM 2018-06-10 11:56:31)
 class ReceivedMessage(Message):
     """ Message received through a TCP socket. """
     def __init__(self,
-                 clock: int,
+                 process: Process,
                  timestamp: datetime,
-                 source: int,
+                 source: str,
                  target: str,
                  content=""):
-        super().__init__(clock, timestamp, source, target)
+        super().__init__(process, timestamp, source, target)
         self.content = content
+        self.parse_content()
 
-    @property
-    def emitter_id(self):
-        return self.content  # TODO: apply some regex (RM 2018-06-06 13:16:53)
+    def log(self):
+        self.process.LOG.info(self.content)
 
-    def log(self, parameter_list):
-        raise NotImplementedError
+    def parse_content(self):
+        print("received message")
+        print(self.content)
+        try:
+            if "ACK" in self.content:
+                print("ACK")
+                pattern = r"<(\d*)>.*([\w-]{36}).*\s([\w-]{36}).*<(\d*)>\s" \
+                r"from\s([\d.]+) to ([\d.]+)\s\(([\d\s\-.:]*)\)"
+                match = re.search(pattern, self.content)
+                self.emitter_clock = match.group(1)
+                self.emitter_id = match.group(2)
+                self.confirmation_clock = match.group(3)
+                self.original_clock = int(match.group(4))
+                # self.source = match.group(5)
+                # self.target = match.group(6)
+                self.emitter_timestamp = match.group(7)
+
+                # TODO: write message if ready (RM 2018-06-10 17:23:20)
+                # write message if all acks received
+                print("original_clock = ", self.original_clock)
+                message = self.process.queue.fetch()
+                message.log()
+                
+                # possibly unnecessary (RM 2018-06-10 23:06:07)
+                self.process.queue.head = max(self.process.queue.head,
+                                              self.original_clock) + 1
+            else:
+                pattern = r"<(\d*)>.*([\w-]{36}).*from ([\d.]+) " \
+                r"to ([\d.]+): ([\w\s',]+) \(([\d\s\-.:]*)\)"
+                match = re.search(pattern, self.content)
+                if match:
+                    self.emitter_clock = int(match.group(1))
+                    self.emitter_id = match.group(2)
+                    # self.source = match.group(3)
+                    # self.target = match.group(4)
+                    self.emitter_content = match.group(5)
+                    self.emitter_timestamp = match.group(6)
+
+                    # TODO: write message if ready (RM 2018-06-10 17:23:20)
+                    # write message if head clock >= emitter_clock
+                    print(self.process.queue.head, ">=", self.emitter_clock)
+                    if self.process.queue.head >= self.emitter_clock:
+                        message = self.process.queue.fetch()
+                        message.log()
+                        print("log written")
+                else:
+                    # print(self.content)
+                    print(self.emitter_clock, self.emitter_id)
+
+        except:
+            traceback.print_exc()
 
 
 # TODO: replace clock with self.process.clock (RM 2018-06-10 11:56:31)
 class AckMessage(Message):
     """ Acknowledgement of a message received through a TCP socket. """
     def __init__(self,
-                 clock: int,
+                 process: Process,
                  timestamp: datetime,
-                 source: int,
+                 source: str,
                  target: str,
-                 receipt_of: uuid.UUID):
-        super().__init__(clock, timestamp, source, target)
+                 receipt_of: uuid.UUID,
+                 original_clock: int):
+        super().__init__(process, timestamp, source, target)
         self.receipt_of = receipt_of
-        self.content = "<{}> ACK {} in confirmation of message {}" \
-                        " from {} to {} ({}).".format(
+        self.original_clock = int(original_clock)
+        self.content = "<{}> ACK {} in confirmation of message {} <{}>" \
+                        " from {} to {} ({})".format(
                             self.clock,
                             self.id,
                             self.receipt_of,
+                            self.original_clock,
                             self.target,
                             self.source,
                             self.timestamp
                         )
 
-    def log(self, parameter_list):
-        raise NotImplementedError
+    def log(self):
+        self.process.LOG.info(self.content)
 
 
-# TODO: find an appropriate inheritance (RM 2018-05-28T21:00:09.381BRT)
 class MessageQueue(object):
     """ Data structure holding messages while they wait for confirmation. """
     def __init__(self, process: Process, underlying=dummy.Queue):
         self.process = process
-        self.underlying = underlying
+        self._underlying = underlying()
+        self._head = 1
+        self.lock = dummy.Lock()
     
     def put(self, message):
-        self.underlying.put_nowait(message)
+        """ Insert message at the back of a queue. """
+        print(self._underlying.qsize())
+        self._underlying.put_nowait(message)
 
     def fetch(self):
-        return self.underlying.get()
+        """ Return message from the head of a queue. """
+        print("fetching", self._underlying.qsize())
+
+        message = self._underlying.get()
+        self.head = max(message.clock, self.head) + 1
+        return message
+
+    @property
+    def head(self):
+        self.lock.acquire()
+        try:
+            return self._head
+        except Exception as e:
+            self.process.LOG.error(e)
+            raise e
+        finally:
+            self.lock.release()
+
+    @head.setter
+    def head(self, value):
+        self.lock.acquire()
+        try:
+            self._head = value
+        except Exception as e:
+            self.process.LOG.error(e)
+            raise e
+        finally:
+            self.lock.release()

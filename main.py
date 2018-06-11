@@ -4,6 +4,8 @@ COS470 - Assignment 3
 Ramon Melo (ramonduarte at poli.ufrj.br)
 """
 import signal
+import traceback
+from time import sleep
 from multiprocessing.dummy import Pool
 from manager import user_input_handler, signal_handler, ger_or_default, log_setup
 from classes import Process
@@ -26,6 +28,9 @@ def main():
     signal.signal(signal.SIGUSR1, signal_handler)  # halted
     signal.signal(signal.SIGUSR2, signal_handler)  # awaken
 
+    if __debug__:
+        print(user_input, ger_or_default(user_input, 2, 8002))
+
 
     ## LIGHT. CAMERA. ACTION.
     try:
@@ -37,24 +42,29 @@ def main():
             port=ger_or_default(user_input, 4, 8003),
             # target_address=ger_or_default(user_input, 1, "192.168.0.3"),
             # target_address=ger_or_default(user_input, 1, "192.168.0.3"),
-            )
+        )
 
         print("Setting up listener thread.")
         # process.listener_thread.run()
         pool = Pool(processes=4)
 
-        pool.apply_async(process.listener_thread.run, ())
+        # pool.apply_async(process.listener_thread.run, ())
 
         print("Setting up emitter thread.")
-        process.emitter_thread.run()
+        while True:
+            try:
+                process.emitter_thread.run()
+            except ConnectionRefusedError:
+                traceback.print_exc()
+                sleep(1)
+                continue
+
         # res2 = pool.apply_async(process.emitter_thread.run, ())
 
         signal.pause()
 
         return 0
     except:
-        print("Terrible error!")
-        import traceback
         traceback.print_exc()
 
         process.emitter_thread.socket.close()
