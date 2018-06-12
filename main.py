@@ -46,20 +46,30 @@ def main():
 
         print("Setting up listener thread.")
         # process.listener_thread.run()
-        pool = Pool(processes=4)
+        pool = Pool(processes=1)
+        pool2 = Pool(processes=1)
 
-        # pool.apply_async(process.listener_thread.run, ())
+        pool.apply_async(process.listener_thread.run, ())
+
+        sleep(5)
 
         print("Setting up emitter thread.")
-        while True:
-            try:
-                process.emitter_thread.run()
-            except ConnectionRefusedError:
-                traceback.print_exc()
-                sleep(1)
-                continue
+        # while True:
+        try:
+            # process.emitter_thread.run()
+            pool2.apply_async(process.emitter_thread.run, ())
+            sleep(1)
+        except ConnectionRefusedError:
+            traceback.print_exc()
+            sleep(1)
+            # continue
 
         # res2 = pool.apply_async(process.emitter_thread.run, ())
+        while not process.queue.empty():
+            message = process.queue.fetch()
+            message.log()
+            if __debug__:
+                print("log written")
 
         signal.pause()
 

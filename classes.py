@@ -21,7 +21,7 @@ class Process(object):
     Process that will coordenate threads.
     """
     def __init__(self, LOG, target_address="", target_port=8002, address="",
-                 port=8002, events_by_process=100, events_per_second=.1):
+                 port=8002, events_by_process=5, events_per_second=.1):
         self.events_by_process = events_by_process
         self.events_per_second = events_per_second
         self.pid = os.getpid()
@@ -75,7 +75,7 @@ class Thread(object):
     def start_socket(self):
         """ Set up connection through TCP/IP socket. """
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.setblocking(0)
+        # self.socket.setblocking(0)
 
     @property
     def hostname(self):
@@ -88,16 +88,23 @@ class ListenerThread(Thread):
         super().__init__(*args, **kwargs)
         self.socket.bind((self.address, self.port))
         self.socket.listen(10)
+        if __debug__:
+            print("socket is listening")
 
     def run(self, *args, **kwargs):
         # accept connections from outside
         # (client_socket, address) = self.socket.accept()
+        if __debug__:
+            print("Accepting connection at {}:{}".format(self.address, self.port))
         (client_socket, address) = self.socket.accept()
+        if __debug__:
+            print("Connection accepted")
         self.client_ip_addr = str(address[0])
         self.client_port = str(address[1])
         
-        self.process.LOG.info("Accepting connection from %s:%s", self.client_ip_addr,
-                 self.client_port)
+        self.process.LOG.info("Accepting connection from %s:%s",
+                              self.client_ip_addr,
+                              self.client_port)
 
         # self.process.LOG.info("client socket: %s", client_socket)
         while True:
@@ -177,31 +184,33 @@ class ListenerThread(Thread):
             # returning ACK message (RM 2018-06-04 20:52:41)
             self.process.clock.increment()
 
-            while True:
-                try:
-                    ack = AckMessage(
-                        process=self.process,
-                        timestamp=datetime.today(),
-                        source=self.address,
-                        target=self.client_ip_addr,
-                        receipt_of=message.emitter_id,
-                        original_clock=message.emitter_clock
-                    )
-                    # FIXME: self.process.LOG.info(ack.content)
-                    # can_read, can_write, under_exception = select.select(
-                    #     [client_socket],
-                    #     [self.process.emitter_thread.socket],
-                    #     [self.process.emitter_thread.socket]
-                    # )
-                    self.process.emitter_thread.socket.send(ack.content.encode("utf8"))
-                    message.mark_as_done()
-                    print("ACK sent")
-                    print(ack.content)
-                    break
-                except AttributeError:
-                    print("=>", message.content)
+            try:
+                ack = AckMessage(
+                    process=self.process,
+                    timestamp=datetime.today(),
+                    source=self.address,
+                    target=self.client_ip_addr,
+                    receipt_of=message.emitter_id,
+                    original_clock=message.emitter_clock
+                )
+                # FIXME: self.process.LOG.info(ack.content)
+                # can_read, can_write, under_exception = select.select(
+                #     [client_socket],
+                #     [self.process.emitter_thread.socket],
+                #     [self.process.emitter_thread.socket]
+                # )
+                self.process.emitter_thread.socket.send(ack.content.encode("utf8"))
+                message.mark_as_done()
+                print("ACK sent")
+                print(ack.content)
+            except AttributeError:
+                print("=>", message.content)
 
-                    sleep(1)
+                sleep(1)
+            except BrokenPipeError:
+                print("ACK was not sent")
+
+                sleep(1)
 
             print("listening")
             # TODO: end this function asynchronously (RM 2018-06-03 22:34:13)
@@ -227,13 +236,12 @@ class EmitterThread(Thread):
                 self.socket.connect((self.target_address, self.target_port))
             except (ConnectionRefusedError, BlockingIOError):
                 if __debug__:
-                    print(self.address, self.port)
+                    # print(self.address, self.port)
                     print(self.target_address, self.target_port)
                     print(able_to_write)
                 # self.socket.close()
-                sleep(2)
+                sleep(1)
         # while True:
-            
 
         for tick in range(self.process.events_by_process):
             self.process.clock.increment()
@@ -252,6 +260,10 @@ class EmitterThread(Thread):
                 while self.socket not in can_write:
                     sleep(1)
                 self.socket.send(message.content.encode("utf8"))
+                
+                if __debug__:
+                    print("sent message", tick)
+                    print(message.content)
             except BrokenPipeError:
                 if __debug__:
                     print(self.target_port, self.target_address)
@@ -464,7 +476,7 @@ class ReceivedMessage(Message):
                     # TODO: write message if ready (RM 2018-06-10 17:23:20)
                     # write message if head clock >= emitter_clock
                     print(self.process.queue.head, ">=", self.emitter_clock)
-                    if self.process.queue.head >= self.emitter_clock:
+                    if self.process.queue.empty() or self.process.queue.head >= self.emitter_clock:
                         message = self.process.queue.fetch()
                         message.log()
                         print("log written")
@@ -514,7 +526,7 @@ class MessageQueue(object):
     
     def put(self, message):
         """ Insert message at the back of a queue. """
-        print(self._underlying.qsize())
+        # print(self._underlying.qsize())
         self._underlying.put_nowait(message)
 
     def fetch(self):
@@ -546,3 +558,7 @@ class MessageQueue(object):
             raise e
         finally:
             self.lock.release()
+
+    def empty(self):
+        return self._underlying.empty()
+
