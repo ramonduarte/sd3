@@ -1,0 +1,9 @@
+\begin{thebibliography}{}
+
+\bibitem[Tyrväinen, 2016]{WEBSITE:2}
+Tyrväinen, J. (2016).
+\newblock Concurrent solution for lamport clocks.
+\newblock \url{https://github.com/religiosa/lamportClocks}.
+\newblock Accessado em 14/06/2018.
+
+\end{thebibliography}
