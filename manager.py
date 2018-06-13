@@ -17,7 +17,7 @@ def user_input_handler() -> list:
 
 def signal_handler(sig: signal.signal, frame) -> int:
     """ Handle extern signals in order to set up coordenation."""
-    if sig == signal.SIGTERM:
+    if sig in (signal.SIGTERM, signal.SIGINT):
         LOG.fatal("Terminated by user (likely by Ctrl+C).")
         try:
             process.emitter_thread.socket.close()
@@ -34,6 +34,11 @@ def signal_handler(sig: signal.signal, frame) -> int:
     elif sig == signal.SIGUSR2:  # continue
         LOG.warning("Awaken by user (SIGUSR2).")
         return 0
+
+    elif sig == signal.SIGPIPE:
+        if __debug__:
+            print("SIGPIPE")
+            return 0
     else:
         return 1
 
