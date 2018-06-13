@@ -1,31 +1,11 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% University/School Laboratory Report
-% LaTeX Template
-% Version 3.1 (25/3/14)
-%
-% This template has been downloaded from:
-% http://www.LaTeXTemplates.com
-%
-% Original author:
-% Linux and Unix Users Group at Virginia Tech Wiki 
-% (https://vtluug.org/wiki/Example_LaTeX_chem_lab_report)
-%
-% License:
-% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%----------------------------------------------------------------------------------------
-%	PACKAGES AND DOCUMENT CONFIGURATIONS
-%----------------------------------------------------------------------------------------
-
 \documentclass[a4paper,12pt]{article}
 
-    % \usepackage[version=3]{mhchem} % Package for chemical equation typesetting
-    % \usepackage{siunitx} % Provides the \SI{}{} and \si{} command for typesetting SI units
-        \usepackage{graphicx} % Required for the inclusion of images
-        \usepackage{natbib} % Required to change bibliography style to APA
-        \usepackage{url}
+    \usepackage{graphicx} % Required for the inclusion of images
+    \usepackage{natbib} % Required to change bibliography style to APA
+    \usepackage{url}
+    \usepackage[portuguese]{babel}
+    \usepackage[utf8]{inputenc}
+    \usepackage[T1]{fontenc}
     %     \usepackage{amsmath} % Required for some math elements 
         
     %     \setlength\parindent{0pt} % Removes all indentation from paragraphs
@@ -95,14 +75,30 @@
             \end{tabular}
 
             \em{}Ao contrário dos trabalhos anteriores, a ordenação total de eventos distribuídos ocorre numa camada de abstração significativamente acima do hardware, de forma que implementações de baixo nível e acesso direto ao metal não compõem mais o conjunto de ferramentas desejável ao desenvolvimento da aplicação.
-            Pelo contrário, bibliotecas de sockets, processos e \emph{user-level threads} estão disponíveis em praticamente todas as linguagens de programação.
+            Pelo contrário, bibliotecas de \emph{sockets}, processos e \emph{user-level threads} estão disponíveis em praticamente todas as linguagens de programação.
             Desta forma, deseja-se do ecossistema características como o suporte a construtos de programação orientada a objetos, tais como herança e polimorfismo; legibilidade do código; e agnosticismo em relação ao sistema operacional.
             
             A linguagem escolhida para este trabalho foi Python 3.5, edição que é nativa à maioria esmagadora de sistemas operacionais baseados no padrão POSIX.
             Em especial, esta versão é significativamente mais eficiente que as baseadas em Python 2 - mais tradicionais - e traz nativamente bibliotecas como a \texttt{multiprocessing}\cite{WEBSITE:8} (\emph{user-level threads} em concorrência, uma das poucas implementações que suporta o ecossistema Windows).
             
-            Dada a natureza dos requisitos, que exige estruturas de dados razoavelmente similares mas autônomas, e ao prazo de entrega, que forçou a realização de \emph{sprints} bastante curtos (em média, dois por semana), o paradigma de orientação objetos foi uma escolha natural.
+            Dada a natureza dos requisitos, que exige estruturas de dados razoavelmente similares mas autônomas, e ao prazo de entrega, que forçou a realização de \emph{sprints} bastante curtos (em média, dois por semana), o paradigma de orientação a objetos foi uma escolha natural.
 
+            Conforme sugestão do enunciado, a comunicação interprocessual foi mantida através de \emph{sockets} TCP, o que, na prática, implica a premissa de que a rede física subposta é confiável, ou seja, mensagens não são perdidas (e, portanto, não precisam ser reenviadas) e chegam convenientemente de acordo com a ordem em que foram enviadas (\cite{BOOK:1}).
+            Esta premissa pode ser considerada verdadeira para \emph{sockets} locais, que não dependem de canais externos ao sistema operacional para completarem o percurso.
+            Por esta razão, os estudos de caso foram realizados no mesmo computador, onde tal presunção pode ser verificada e mensurada.
+
+            É importante mencionar que, devido à especificação do trabalho, ferramentas de altíssimo nível de abstração foram propositalmente evitadas, visto que mascarariam funcionalidades requeridas pelo enunciado.
+            Ainda assim, é relevante mencioná-las, para fins de completude desta seção.
+            O módulo \texttt{socketserver} gerencia silenciosamente falhas de conexão em sockets, e seria a principal escolha se não houvesse especificada a necessidade de coordenar manualmente os \emph{sockets}.
+            Caso não houvesse a necessidade de utilizar uma \emph{thread} cliente e outra servidora, o módulo \texttt{asyncio} seria uma escolha mais intuitiva.
+            Se esta fosse uma aplicação comercial, muitas das funcionalidades já estariam implementadas no framework \emph{Twisted}.
+
+            Embora a linguagem preveja implementação agnóstica em relação aos sistemas operacionais, esta aplicação foi desenvolvida sob o sistema operacional Ubuntu 14.04 LTS 64-bit, onde a implementação é determinística\cite{WEBSITE:8}.
+            Em especial, versões antigas de sistemas Windows podem exibir condições de corrida não-previsíveis.
+
+            O programa foi projetado para ser executado por um interpretador no modo otimizado (\texttt{python -O main.py [args]}).
+            Embora o modo não-otimizado produza o mesmo resultado para fins práticos, há diversos gatilhos de depuração (\texttt{if \_\_debug\_\_}) que serão ativados.
+            A avaliação pode se tornar cansativa ou tediosa devido à verbosidade das diretivas de depuração.
 
         %----------------------------------------------------------------------------------------
         %	SECTION 3
@@ -141,9 +137,8 @@
         Todos os objetos são pertencentes ao objeto \texttt{Process} que coordena a execução local do programa.
         Isto porque, para garantir o acesso implícito à memória compartilhada, o módulo \texttt{multiprocessing} exige que as estruturas de dados sejam referenciadas pela abstração do processo (e não pela abstração das \emph{threads}).
 
-            \begin{tabular}{ll}
-                Mass of magnesium metal & = sdsdsd
-            \end{tabular}
+        A escrita no disco é gerenciada pelo modo \texttt{logging}, que grava num arquivo sugerido pelo próprio usuário como comando.
+
             
         %----------------------------------------------------------------------------------------
         %	SECTION 4

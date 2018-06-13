@@ -1,11 +1,12 @@
-This is BibTeX, Version 0.99d (TeX Live 2015/Debian)
-Capacity: max_strings=35307, hash_size=35307, hash_prime=30011
+This is BibTeX, Version 0.99d (TeX Live 2017/Debian)
+Capacity: max_strings=100000, hash_size=100000, hash_prime=85009
 The top-level auxiliary file: sd3_report.aux
 The style file: apalike.bst
 Database file #1: sd3_report.bib
+Warning--I didn't find a database entry for "BOOK:1"
 You've used 3 entries,
             1935 wiz_defined-function locations,
-            488 strings with 4115 characters,
+            490 strings with 4127 characters,
 and the built_in function-call counts, 779 in all, are:
 = -- 84
 > -- 21
@@ -44,3 +45,4 @@ warning$ -- 0
 while$ -- 6
 width$ -- 0
 write$ -- 44
+(There was 1 warning)
