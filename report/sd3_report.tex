@@ -37,7 +37,7 @@
     %	DOCUMENT INFORMATION
     %----------------------------------------------------------------------------------------
 
-    \title{Relatório do Trabalho Pr`atico 3} % Title
+    \title{Relatório do Trabalho Prático 3} % Title
     \author{Ramon \textsc{Melo}} % Author name
     \date{\today} % Date for the report
 
@@ -91,15 +91,56 @@
         
             \begin{tabular}{ll}
                 Balance used & \#4\\
-                Magnesium from sample bottle & \#1
+                Magnesium from sample bottle & \#1\\
             \end{tabular}
-        
+
+            \em{}Ao contrário dos trabalhos anteriores, a ordenação total de eventos distribuídos ocorre numa camada de abstração significativamente acima do hardware, de forma que implementações de baixo nível e acesso direto ao metal não compõem mais o conjunto de ferramentas desejável ao desenvolvimento da aplicação.
+            Pelo contrário, bibliotecas de sockets, processos e \emph{user-level threads} estão disponíveis em praticamente todas as linguagens de programação.
+            Desta forma, deseja-se do ecossistema características como o suporte a construtos de programação orientada a objetos, tais como herança e polimorfismo; legibilidade do código; e agnosticismo em relação ao sistema operacional.
+            
+            A linguagem escolhida para este trabalho foi Python 3.5, edição que é nativa à maioria esmagadora de sistemas operacionais baseados no padrão POSIX.
+            Em especial, esta versão é significativamente mais eficiente que as baseadas em Python 2 - mais tradicionais - e traz nativamente bibliotecas como a \texttt{multiprocessing}\cite{WEBSITE:8} (\emph{user-level threads} em concorrência, uma das poucas implementações que suporta o ecossistema Windows).
+            
+            Dada a natureza dos requisitos, que exige estruturas de dados razoavelmente similares mas autônomas, e ao prazo de entrega, que forçou a realização de \emph{sprints} bastante curtos (em média, dois por semana), o paradigma de orientação objetos foi uma escolha natural.
+
+
         %----------------------------------------------------------------------------------------
         %	SECTION 3
         %----------------------------------------------------------------------------------------
         
         \section{Implementação}
         
+        Há cinco classes que serviram de fundação para o trabalho.
+        O diagrama de classes está representado graficamente na Figura 1.
+
+        \begin{figure}[h]
+            \begin{center}
+                \includegraphics[width=0.65\textwidth]{placeholder_1} % Include the image placeholder.png
+                \caption{Figure caption.}
+            \end{center}
+        \end{figure}
+
+        A classe \texttt{Process} encapsula funcionalidades dos módulos \texttt{socket} \cite{WEBSITE:7} e \texttt{multiprocessing}.
+        É importante observar que este último expõe a mesma \emph{API} tanto para processos, quanto para \emph{threads}.
+        Devido aos requerimentos do enunciado, foi utilizado somente o \emph{namespace} \texttt{dummy}, que inicia \emph{user-level threads} dentro do mesmo processo e permite o compartilhamento implícito de memória entre elas.
+
+        A classe \texttt{Thread} concentra os métodos executados concorrentemente.
+        Em especial, o método \texttt{run()} foi construído desde o princípio de forma limitada ao padrão \emph{thread-safe}.
+        Herdam desta classe \texttt{ListenerThread} (orientada a serviços de servidor) e \texttt{EmitterThread} (orientada a serviços de cliente).
+
+        Os objetos que representam os eventos são derivados da classe \texttt{Event}.
+        Particularmente, os que representam as mensagens derivam da classe \texttt{Message}.
+        São eles: \texttt{SentMessage} (mensagem enviada pelo processo que a criou), \texttt{ReceivedMessage} (mensagem recebida pelo processo que a criou) e \texttt{AckMessage} (confirmação a ser enviada pelo processo que a criou).
+        As mensagens são as responsáveis pela execução, visto que representam os eventos na abstração do mecanismo \emph{Totally Ordered Multicast} enunciada a este trabalho.
+        Portanto, é a classe \texttt{ReceivedMessage} a responsável por gravar pertinentemente as mensagens no disco uma vez que estejam aptas.
+
+        O relógio lógico de Lamport é representado pela classe \texttt{LogicalClock}, que encapsula cadeados (\emph{locks}) para a manutenção do caráter \emph{thread-safe} do método \texttt{Thread.run()}.
+
+        Por fim, as mensagens que aguardam execução são armazenadas num objeto \texttt{MessageQueue}, que encapsula uma fila do tipo \emph{FIFO} (\emph{First In, First Out}, "fila indiana") e cadeados para seu acesso concorrente.
+
+        Todos os objetos são pertencentes ao objeto \texttt{Process} que coordena a execução local do programa.
+        Isto porque, para garantir o acesso implícito à memória compartilhada, o módulo \texttt{multiprocessing} exige que as estruturas de dados sejam referenciadas pela abstração do processo (e não pela abstração das \emph{threads}).
+
             \begin{tabular}{ll}
                 Mass of magnesium metal & = sdsdsd
             \end{tabular}
@@ -111,12 +152,7 @@
         \section{Estudos de Caso}
         
         
-        \begin{figure}[h]
-            \begin{center}
-                \includegraphics[width=0.65\textwidth]{placeholder_1} % Include the image placeholder.png
-                \caption{Figure caption.}
-            \end{center}
-        \end{figure}
+        
         
         %----------------------------------------------------------------------------------------
         %	SECTION 5
@@ -134,7 +170,7 @@
         %----------------------------------------------------------------------------------------
         
         \bibliographystyle{apalike}
-        \bibliography{sample}
+        \bibliography{sd3_report}
         
         %----------------------------------------------------------------------------------------
 

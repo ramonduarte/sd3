@@ -1,5 +1,17 @@
 \begin{thebibliography}{}
 
+\bibitem[Foundation, 2017]{WEBSITE:8}
+Foundation, P.~S. (2017).
+\newblock Official 3.5.2 documentation: Process-based parallelism.
+\newblock \url{https://docs.python.org/3.5/library/multiprocessing.html}.
+\newblock Accessado em 14/06/2018.
+
+\bibitem[McMillan, 2017]{WEBSITE:7}
+McMillan, G. (2017).
+\newblock Official 3.5.2 documentation: Socket programming.
+\newblock \url{https://docs.python.org/3/howto/sockets.html}.
+\newblock Accessado em 14/06/2018.
+
 \bibitem[Tyrväinen, 2016]{WEBSITE:2}
 Tyrväinen, J. (2016).
 \newblock Concurrent solution for lamport clocks.
