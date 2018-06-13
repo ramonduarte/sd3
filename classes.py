@@ -24,7 +24,11 @@ class Process(object):
                  port=8002, events_by_process=5, events_per_second=.1):
         self.events_by_process = events_by_process
         self.events_per_second = events_per_second
-        self.pid = os.getpid()
+        self.address = address
+        self.port = int(port)
+        self.target_address = target_address
+        self.target_port = int(target_port)
+        self.create_socket()
         self.create_threads(
             target_address=target_address,
             target_port=target_port,
@@ -43,10 +47,25 @@ class Process(object):
                                             target_port=target_port,
                                            )
 
-    # TODO: lift socket creation to Process level (RM 2018-06-01 22:47:12)
     def create_socket(self) -> "socket":
         """ Start socket for its threads to use. """
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.bind((self.address, self.port))
+
+    @property
+    def ready(self):
+        """ Flag to join async threads. """
+        return self.emitter_thread._ready and self.listener_thread._ready
+
+    # TODO: broadcast message to all processes (RM 2018-06-12 21:42:02)
+    def broadcast(self, origin):
+        """ Send messages to all processes. """
         pass
+
+    @property
+    def pid(self):
+        return os.getpid()
 
     def __lt__(self, other: "Process"):
         return self.pid < other.pid
@@ -62,6 +81,7 @@ class Thread(object):
     """ Abstract class to encapsulate threading functionality. """
     def __init__(self, process: Process, thread=dummy.Process, address="",
                  port=8002):
+        self._ready = False
         self.underlying = thread
         self.process = process
         self.address = address if address else "0.0.0.0"
@@ -75,7 +95,6 @@ class Thread(object):
     def start_socket(self):
         """ Set up connection through TCP/IP socket. """
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # self.socket.setblocking(0)
 
     @property
     def hostname(self):
@@ -86,8 +105,8 @@ class ListenerThread(Thread):
     """ Thread responsible for handling receiving messages. """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.socket.bind((self.address, self.port))
-        self.socket.listen(10)
+        # self.socket.bind((self.address, self.port))
+        self.process.server_socket.listen(10)
         if __debug__:
             print("socket is listening")
 
@@ -96,34 +115,30 @@ class ListenerThread(Thread):
         # (client_socket, address) = self.socket.accept()
         if __debug__:
             print("Accepting connection at {}:{}".format(self.address, self.port))
-        (client_socket, address) = self.socket.accept()
+        (client_socket, address) = self.process.server_socket.accept()
         if __debug__:
             print("Connection accepted")
         self.client_ip_addr = str(address[0])
         self.client_port = str(address[1])
-        
-        self.process.LOG.info("Accepting connection from %s:%s",
-                              self.client_ip_addr,
-                              self.client_port)
 
-        # self.process.LOG.info("client socket: %s", client_socket)
+        if __debug__:
+            self.process.LOG.info("Accepting connection from %s:%s",
+                                  self.client_ip_addr,
+                                  self.client_port)
+
         while True:
             try:
                 self.listen(client_socket)
-                # res = self.listen(client_socket)
-                # self.underlying(
-                #     target=self.listen,
-                #     args=(client_socket)).start()
                 break
-            except Exception as e:
-                self.process.LOG.fatal(e)
-                traceback.print_exc()
-                print(client_socket)
+            except Exception as exception:
+                self.process.LOG.fatal(exception)
+                if __debug__:
+                    print(client_socket)
+                    traceback.print_exc()
                 sleep(1)
 
-                self.listen(self.socket)
-
-        # self.socket.close()
+        self._ready = True
+        return 0
 
 
     # needs to be a function to keep thread semantics (RM 2018-06-03 22:32:44)
@@ -132,7 +147,6 @@ class ListenerThread(Thread):
 
         while True:
             input_from_client_bytes = client_socket.recv(MAX_BUFFER_SIZE)
-            self.process.clock.increment()
             size = sys.getsizeof(input_from_client_bytes)
 
             if  size >= MAX_BUFFER_SIZE:
@@ -140,35 +154,16 @@ class ListenerThread(Thread):
                 self.process.LOG.error("The length of input is too long: %d", size)
                 continue
 
-            if size == 33:  # empty message, remote thread failed
-                # TODO: ReceivedMessage() (RM 2018-06-06 13:01:13)
-                self.process.LOG.info("Connection %s:%s ended.", self.client_ip_addr,
-                         self.client_port)
-                return 0
-
             # decode input and strip the end of line
             input_from_client = input_from_client_bytes.decode("utf8").rstrip()
-            print(input_from_client)
 
-            if input_from_client == "CLOSE":
+            if size == 33 or input_from_client == "CLOSE":  # empty message, remote thread failed
                 # TODO: ReceivedMessage() (RM 2018-06-06 13:01:13)
-                # client_socket.close()
-                self.process.LOG.info("Connection %s:%s ended.", self.client_ip_addr,
-                         self.client_port)
-                # return 0
-                continue
-            
-            # TODO: fix better approach to ack checks (RM 2018-06-10 13:35:33)
-            if "ACK" in input_from_client:
-                # TODO: fetch sent message and log it (RM 2018-06-10 13:38:03)
-                message = ReceivedMessage(
-                    self.process,
-                    datetime.today(),
-                    self.client_ip_addr,
-                    self.address,
-                    input_from_client
-                )
-                continue
+                if __debug__:
+                    self.process.LOG.info("Connection %s:%s ended.",
+                                          self.client_ip_addr,
+                                          self.client_port)
+                return 0
 
             message = ReceivedMessage(
                 self.process,
@@ -178,44 +173,51 @@ class ListenerThread(Thread):
                 input_from_client
             )
 
+            if "ACK" in input_from_client:
+                continue
+
             self.process.queue.put(message)
-            # FIXME: self.process.LOG.info("RECEIVED %s", message.content)
 
-            # returning ACK message (RM 2018-06-04 20:52:41)
-            self.process.clock.increment()
+            while True:
+                try:
+                    ack = AckMessage(
+                        process=self.process,
+                        timestamp=datetime.today(),
+                        source=self.address,
+                        target=self.client_ip_addr,
+                        receipt_of=message.emitter_id,
+                        original_clock=message.emitter_clock
+                    )
+                    
+                    able_to_write = select.select([], [self.process.client_socket], [])[1]
+                    while self.process.client_socket not in able_to_write:
+                        sleep(1)
+                    self.process.client_socket.send(ack.content.encode("utf8"))
 
-            try:
-                ack = AckMessage(
-                    process=self.process,
-                    timestamp=datetime.today(),
-                    source=self.address,
-                    target=self.client_ip_addr,
-                    receipt_of=message.emitter_id,
-                    original_clock=message.emitter_clock
-                )
-                # FIXME: self.process.LOG.info(ack.content)
-                # can_read, can_write, under_exception = select.select(
-                #     [client_socket],
-                #     [self.process.emitter_thread.socket],
-                #     [self.process.emitter_thread.socket]
-                # )
-                self.process.emitter_thread.socket.send(ack.content.encode("utf8"))
-                message.mark_as_done()
-                print("ACK sent")
-                print(ack.content)
-            except AttributeError:
-                print("=>", message.content)
+                    # FIXME: this doesn't do anything (RM 2018-06-12 12:22:26)
+                    message.mark_as_done()
 
-                sleep(1)
-            except BrokenPipeError:
-                print("ACK was not sent")
+                    if __debug__:
+                        print("ACK sent")
+                        print(ack.content)
 
-                sleep(1)
+                    break
+                except AttributeError:
+                    if __debug__:
+                        print("=>", message.content)
+                    sleep(1)
+                except BrokenPipeError:
+                    if __debug__:
+                        print("ACK was not sent")
+                    sleep(1)
 
-            print("listening")
+            if __debug__:
+                print("listening")
+
             # TODO: end this function asynchronously (RM 2018-06-03 22:34:13)
             sleep(1)
 
+        # return 0
 
 class EmitterThread(Thread):
     """ Thread responsible for sending messages. """
@@ -226,63 +228,82 @@ class EmitterThread(Thread):
 
     def run(self, *args, **kwargs):
         """ Loop through input parameters."""
-        able_to_read, able_to_write, under_exception = select.select(
-                [self.socket],
-                [self.socket],
-                [self.socket]
-            )
-        if self.socket in able_to_write:
+        able_to_write = select.select([], [self.process.client_socket], [])[1]
+        if self.process.client_socket in able_to_write:
             try:
-                self.socket.connect((self.target_address, self.target_port))
+                self.process.client_socket.connect((self.target_address, self.target_port))
             except (ConnectionRefusedError, BlockingIOError):
                 if __debug__:
-                    # print(self.address, self.port)
                     print(self.target_address, self.target_port)
                     print(able_to_write)
                 # self.socket.close()
                 sleep(1)
-        # while True:
 
         for tick in range(self.process.events_by_process):
-            self.process.clock.increment()
             message = SentMessage(
                 self.process,
                 datetime.now(),
                 self.address,
                 self.target_address,
             )
-            try:
-                can_read, can_write, under_exception = select.select(
-                    [],
-                    [self.socket],
-                    [self.socket]
-                )
-                while self.socket not in can_write:
-                    sleep(1)
-                self.socket.send(message.content.encode("utf8"))
-                
-                if __debug__:
-                    print("sent message", tick)
-                    print(message.content)
-            except BrokenPipeError:
-                if __debug__:
-                    print(self.target_port, self.target_address)
-                traceback.print_exc()
-                sleep(10)
+            sent = False
+            attempt = 0
 
-            # FIXME: self.process.LOG.info(message.content)
+            while not sent:
+                sent = self.send(message, tick)
+                attempt += 1
+                print("attempt =", attempt)
+                if sent:
+                    break
+                sleep(2)
+
             self.process.queue.put(message)
             sleep(1.0/self.process.events_per_second)
 
-        # FIXME: define protocol to end connection
-        self.socket.send("CLOSE".encode("utf8"))
 
-        # self.socket.close()
+
+        if __debug__:
+            print("broke loop")
+        # FIXME: define protocol to end connection
+        self.process.client_socket.send("CLOSE".encode("utf8"))
+
+        self._ready = True
+        while True:
+            sleep(100)
+
+    # TODO: ideally this should be lifted to Process (RM 2018-06-12 22:38:03)
+    def send(self, message, tick=""):
+        """ Send messages using client socket. """
+        if __debug__:
+            print("loop running")
+        try:
+            able_to_write = select.select([], [self.process.client_socket], [])[1]
+            while self.process.client_socket not in able_to_write:
+                sleep(1)
+            self.process.client_socket.sendall(message.content.encode("utf8"))
+            
+            if __debug__:
+                print("sent message", tick)
+                print(message.content)
+
+            return True
+        except BrokenPipeError:
+            if __debug__:
+                print(self.target_port, self.target_address)
+                traceback.print_exc()
+                self.process.client_socket.close()
+                sleep(10)
+                self.process.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.process.client_socket.connect((self.target_address, self.target_port))
+                sleep(2)
+                self.process.client_socket.sendall(message.content.encode("utf8"))
+                print("message sent after recovering")
+            return False
 
 
 class Channel(object):
     """ Communication between remote processes. """
-    def __init__(self, sender: Process, receiver: Process, *args, **kwargs):
+    def __init__(self, sender: Process, receiver: Process):
         self.processes = [sender, receiver]
 
     @property
@@ -298,7 +319,7 @@ class Channel(object):
 
 class LogicalClock(object):
     """ Implementation of local Lamport clock. """
-    def __init__(self, process: Process, *args, **kwargs):
+    def __init__(self, process: Process):
         self.value = 1
         self.process = process
         self.lock = dummy.Lock()
@@ -308,9 +329,9 @@ class LogicalClock(object):
         self.lock.acquire()
         try:
             self.value += 1
-        except Exception as e:
-            self.process.LOG.error(e)
-            raise e
+        except Exception as exception:
+            self.process.LOG.error(exception)
+            raise exception
         finally:
             self.lock.release()
 
@@ -319,9 +340,9 @@ class LogicalClock(object):
         self.lock.acquire()
         try:
             return self.value
-        except Exception as e:
-            self.process.LOG.error(e)
-            raise e
+        except Exception as exception:
+            self.process.LOG.error(exception)
+            raise exception
         finally:
             self.lock.release()
 
@@ -330,9 +351,9 @@ class LogicalClock(object):
         self.lock.acquire()
         try:
             self.value = max(self.value, other) + 1
-        except Exception as e:
-            self.process.LOG.error(e)
-            raise e
+        except Exception as exception:
+            self.process.LOG.error(exception)
+            raise exception
         finally:
             self.lock.release()
 
@@ -354,13 +375,16 @@ class Event(object):
         self.timestamp = timestamp
         self.source = source
         self.id = uuid.uuid1()
+        self.process.clock.increment()
 
     @property
     def clock(self):
+        """ Value of recorded logical clock. """
         return self._clockstamp
 
     @clock.setter
     def clock(self, value):
+        """ Value of recorded logical clock. """
         raise TypeError("event cannot have its clock value changed.")
 
 
@@ -385,14 +409,10 @@ class Message(Event):
 
     def log(self):
         """ Write message to log. """
-        raise NotImplementedError
-
-    def parse_content(self):
-        """ Generate structure from message content. """
-        raise NotImplementedError
+        self.process.LOG.info(self.content)
 
 
-# TODO: replace clock with self.process.clock (RM 2018-06-10 11:56:31)
+
 class SentMessage(Message):
     """ Message sent through a TCP socket. """
     def __init__(self, process: Process, timestamp: datetime, source: str,
@@ -415,11 +435,7 @@ class SentMessage(Message):
             datetime.now()
             )
 
-    def log(self):
-        self.process.LOG.info(self.content)
 
-
-# TODO: replace clock with self.process.clock (RM 2018-06-10 11:56:31)
 class ReceivedMessage(Message):
     """ Message received through a TCP socket. """
     def __init__(self,
@@ -431,9 +447,6 @@ class ReceivedMessage(Message):
         super().__init__(process, timestamp, source, target)
         self.content = content
         self.parse_content()
-
-    def log(self):
-        self.process.LOG.info(self.content)
 
     def parse_content(self):
         print("received message")
@@ -457,7 +470,7 @@ class ReceivedMessage(Message):
                 print("original_clock = ", self.original_clock)
                 message = self.process.queue.fetch()
                 message.log()
-                
+
                 # possibly unnecessary (RM 2018-06-10 23:06:07)
                 self.process.queue.head = max(self.process.queue.head,
                                               self.original_clock) + 1
@@ -472,23 +485,10 @@ class ReceivedMessage(Message):
                     # self.target = match.group(4)
                     self.emitter_content = match.group(5)
                     self.emitter_timestamp = match.group(6)
-
-                    # TODO: write message if ready (RM 2018-06-10 17:23:20)
-                    # write message if head clock >= emitter_clock
-                    print(self.process.queue.head, ">=", self.emitter_clock)
-                    if self.process.queue.empty() or self.process.queue.head >= self.emitter_clock:
-                        message = self.process.queue.fetch()
-                        message.log()
-                        print("log written")
-                else:
-                    # print(self.content)
-                    print(self.emitter_clock, self.emitter_id)
-
-        except:
+        except Exception:
             traceback.print_exc()
 
 
-# TODO: replace clock with self.process.clock (RM 2018-06-10 11:56:31)
 class AckMessage(Message):
     """ Acknowledgement of a message received through a TCP socket. """
     def __init__(self,
@@ -512,9 +512,6 @@ class AckMessage(Message):
                             self.timestamp
                         )
 
-    def log(self):
-        self.process.LOG.info(self.content)
-
 
 class MessageQueue(object):
     """ Data structure holding messages while they wait for confirmation. """
@@ -523,15 +520,15 @@ class MessageQueue(object):
         self._underlying = underlying()
         self._head = 1
         self.lock = dummy.Lock()
-    
+
     def put(self, message):
         """ Insert message at the back of a queue. """
-        # print(self._underlying.qsize())
         self._underlying.put_nowait(message)
 
     def fetch(self):
         """ Return message from the head of a queue. """
-        print("fetching", self._underlying.qsize())
+        if __debug__:
+            print("after fetching:", self._underlying.qsize())
 
         message = self._underlying.get()
         self.head = max(message.clock, self.head) + 1
@@ -539,26 +536,28 @@ class MessageQueue(object):
 
     @property
     def head(self):
+        """ Value of recorded logical clock of first message in queue. """
         self.lock.acquire()
         try:
             return self._head
-        except Exception as e:
-            self.process.LOG.error(e)
-            raise e
+        except Exception as exception:
+            self.process.LOG.error(exception)
+            raise exception
         finally:
             self.lock.release()
 
     @head.setter
     def head(self, value):
+        """ Value of recorded logical clock of first message in queue. """
         self.lock.acquire()
         try:
             self._head = value
-        except Exception as e:
-            self.process.LOG.error(e)
-            raise e
+        except Exception as exception:
+            self.process.LOG.error(exception)
+            raise exception
         finally:
             self.lock.release()
 
     def empty(self):
+        """ Returns True if no messages on queue. """
         return self._underlying.empty()
-
