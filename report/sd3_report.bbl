@@ -6,6 +6,17 @@ Foundation, P.~S. (2017).
 \newblock \url{https://docs.python.org/3.5/library/multiprocessing.html}.
 \newblock Accessado em 14/06/2018.
 
+\bibitem[Kiehl, 2015]{WEBSITE:9}
+Kiehl, C. (2015).
+\newblock Parallelism in one line.
+\newblock \url{http://chriskiehl.com/article/parallelism-in-one-line/}.
+\newblock Accessado em 14/06/2018.
+
+\bibitem[Kurose, 2007]{KuroseRoss2007}
+Kurose, J.~F. (2007).
+\newblock {\em Computer Networking: A Top-Down Approach}.
+\newblock Pearson.
+
 \bibitem[Labs, 2018]{WEBSITE:11}
 Labs, T.~M. (2018).
 \newblock Twisted: An event-driven networking engine written in python.
@@ -16,12 +27,6 @@ Labs, T.~M. (2018).
 McMillan, G. (2017).
 \newblock Official 3.5.2 documentation: Socket programming.
 \newblock \url{https://docs.python.org/3/howto/sockets.html}.
-\newblock Accessado em 14/06/2018.
-
-\bibitem[Tyrväinen, 2016]{WEBSITE:2}
-Tyrväinen, J. (2016).
-\newblock Concurrent solution for lamport clocks.
-\newblock \url{https://github.com/religiosa/lamportClocks}.
 \newblock Accessado em 14/06/2018.
 
 \end{thebibliography}
