@@ -4,45 +4,45 @@ The top-level auxiliary file: sd3_report.aux
 The style file: apalike.bst
 Database file #1: sd3_report.bib
 Warning--I didn't find a database entry for "BOOK:1"
-You've used 3 entries,
+You've used 4 entries,
             1935 wiz_defined-function locations,
-            490 strings with 4127 characters,
-and the built_in function-call counts, 779 in all, are:
-= -- 84
-> -- 21
-< -- 3
-+ -- 6
-- -- 6
-* -- 45
-:= -- 160
-add.period$ -- 12
-call.type$ -- 3
-change.case$ -- 18
-chr.to.int$ -- 3
-cite$ -- 3
-duplicate$ -- 30
-empty$ -- 46
-format.name$ -- 9
-if$ -- 142
+            496 strings with 4267 characters,
+and the built_in function-call counts, 1033 in all, are:
+= -- 112
+> -- 28
+< -- 4
++ -- 8
+- -- 8
+* -- 60
+:= -- 211
+add.period$ -- 16
+call.type$ -- 4
+change.case$ -- 24
+chr.to.int$ -- 4
+cite$ -- 4
+duplicate$ -- 40
+empty$ -- 61
+format.name$ -- 12
+if$ -- 189
 int.to.chr$ -- 1
 int.to.str$ -- 0
 missing$ -- 0
-newline$ -- 21
-num.names$ -- 9
-pop$ -- 6
+newline$ -- 27
+num.names$ -- 12
+pop$ -- 8
 preamble$ -- 1
-purify$ -- 18
+purify$ -- 24
 quote$ -- 0
-skip$ -- 28
+skip$ -- 37
 stack$ -- 0
-substring$ -- 36
+substring$ -- 48
 swap$ -- 0
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 18
+type$ -- 24
 warning$ -- 0
-while$ -- 6
+while$ -- 8
 width$ -- 0
-write$ -- 44
+write$ -- 58
 (There was 1 warning)
