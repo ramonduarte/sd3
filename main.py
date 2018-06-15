@@ -29,19 +29,20 @@ def main():
     signal.signal(signal.SIGPIPE, signal_handler)  # awaken
 
     if __debug__:
-        print(user_input, ger_or_default(user_input, 2, 8002))
+        print(user_input, ger_or_default(user_input, 0, 8002))
 
 
     ## LIGHT. CAMERA. ACTION.
     try:
+        list_of_ports = [8000, 8001, 8002, 8003, 8004, 8005, 8006, 8007]
+        list_of_ports.remove(int(ger_or_default(user_input, 0, 8003)))
         process = Process(
             LOG=LOG,
-            target_address=ger_or_default(user_input, 1, "0.0.0.0"),
-            target_port=ger_or_default(user_input, 2, 8002),
-            address=ger_or_default(user_input, 3, "0.0.0.0"),
-            port=ger_or_default(user_input, 4, 8003),
-            events_by_process=ger_or_default(user_input, 5, 5),
-            events_per_second=ger_or_default(user_input, 6, 1),
+            target_address="0.0.0.0",
+            port=ger_or_default(user_input, 0, 8003),
+            events_by_process=ger_or_default(user_input, 3, 10000),
+            events_per_second=ger_or_default(user_input, 4, 1),
+            list_of_ports=list_of_ports
         )
 
         listener_pool = Pool(processes=1)
@@ -51,7 +52,7 @@ def main():
             print("Setting up listener thread.")
         listener_pool.apply_async(process.listener_thread.run, ())
 
-        sleep(5)
+        sleep(10)
 
         if __debug__:
             print("Setting up emitter thread.")
@@ -73,8 +74,6 @@ def main():
         process.emitter_thread.socket.close()
         process.listener_thread.socket.close()
         return 1
-
-
 
 
 if __name__ == '__main__':

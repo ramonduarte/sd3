@@ -1,0 +1,35 @@
+************* Module sd3.main
+E: 10, 0: Unable to import 'manager' (import-error)
+C: 23, 4: Variable name "LOG" doesn't conform to snake_case naming style (invalid-name)
+W: 71,11: Catching too general exception Exception (broad-except)
+W: 12, 0: Unused LOG_DIR imported from conf (unused-import)
+************* Module sd3.classes
+C:243, 0: Trailing whitespace (trailing-whitespace)
+C: 46, 8: Attribute name "LOG" doesn't conform to snake_case naming style (invalid-name)
+R: 19, 0: Too many instance attributes (13/7) (too-many-instance-attributes)
+W: 23, 4: Dangerous default value [] as argument (dangerous-default-value)
+R: 23, 4: Too many arguments (8/5) (too-many-arguments)
+W: 75,15: Access to a protected member _ready of a client class (protected-access)
+W: 75,46: Access to a protected member _ready of a client class (protected-access)
+R: 82, 4: Method could be a function (no-self-use)
+W:162,19: Catching too general exception Exception (broad-except)
+W:154, 8: Attribute 'client_ip_addr' defined outside __init__ (attribute-defined-outside-init)
+W:155, 8: Attribute 'client_port' defined outside __init__ (attribute-defined-outside-init)
+W:246, 4: Keyword argument before variable positional arguments list in the definition of __init__ function (keyword-arg-before-vararg)
+W:256, 8: Using a conditional statement with a constant value (using-constant-test)
+R:266, 8: Too many nested blocks (6/5) (too-many-nested-blocks)
+W:379,20: Unused argument 'value' (unused-argument)
+R:379, 4: Method could be a function (no-self-use)
+R:364, 0: Too few public methods (1/2) (too-few-public-methods)
+R:416, 4: Method could be a function (no-self-use)
+R:431, 0: Too many instance attributes (9/7) (too-many-instance-attributes)
+R:433, 4: Too many arguments (6/5) (too-many-arguments)
+C:443, 4: Missing method docstring (missing-docstring)
+W:479,15: Catching too general exception Exception (broad-except)
+R:485, 4: Too many arguments (7/5) (too-many-arguments)
+************* Module sd3.manager
+E: 35, 0: invalid syntax (<string>, line 35) (syntax-error)
+
+------------------------------------------------------------------
+Your code has been rated at 9.04/10 (previous run: 8.75/10, +0.29)
+

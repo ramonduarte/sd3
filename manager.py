@@ -32,7 +32,7 @@ def signal_handler(sig: signal.signal, frame) -> int:
         signal.pause()
         return 0
     elif sig == signal.SIGUSR2:  # continue
-        LOG.warning("Awaken by user (SIGUSR2).")
+        LOG.warning("Awaken by user (SIGUSR2).")""
         return 0
 
     elif sig == signal.SIGPIPE:
@@ -61,7 +61,7 @@ def log_setup() -> logging.Logger:
     logging.basicConfig(
         filename=os.path.join(
             LOG_DIR,
-            ger_or_default(user_input_handler(), 0, __name__)
+            "8-10000-1" + ger_or_default(user_input_handler(), 0, "") + ".log"
         ),
         level=logging.DEBUG
     )
